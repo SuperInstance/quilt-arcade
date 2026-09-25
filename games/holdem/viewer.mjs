@@ -5,23 +5,16 @@
 // Reuses the arcade's qa-* visual language (rulebook clause flash, referee
 // bubble, cell ledger, theta bars) on a poker table instead of a grid.
 
+// The driver lives in module.mjs (the plugin surface, DOM-free). This file
+// renders it: qa-* visual language (rulebook clause flash, referee bubble,
+// cell ledger, theta bars) on a poker table instead of a grid, plus the
+// shared receipts panel.
+
 import { QuiltEngine } from '../../engine/index.js';
-import { buildSheet } from './sheet.mjs';
+import { buildSheet, createDriver, receipts } from './module.mjs';
+import { mountReceipts } from '../../shared/receipts.mjs';
 
-const engine = new QuiltEngine('view-holdem', { eager: true });
-engine.loadSheet(buildSheet());
-window.__engine = engine;
-
-const get = async (id) => {
-  try { return (await engine.get(id)).data; } catch { return undefined; }
-};
-const WEIGHTS = ['aggro', 'tight', 'bluff', 'sticky', 'adapt'];
-
-let mode = 'hvae'; // 'hvae' (human seat 1) | 'cvc'
-let playing = false, tickBusy = false, playTimer = null, learnOn = true;
-let rngState = 424242;
-const rnd = () => { rngState |= 0; rngState = (rngState + 0x6D2B79F5) | 0; let t = Math.imul(rngState ^ (rngState >>> 15), 1 | rngState); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-
+// render helpers — the screen's own vocabulary
 const NAMES = ['P0 · fish (control)', 'P1 · learner', 'P2 · learner'];
 const SUIT_GLYPH = { s: '♠', h: '♥', d: '♦', c: '♣' };
 const cardHtml = (c) => {
@@ -33,66 +26,12 @@ const cardHtml = (c) => {
   return `<span class="qa-card ${red ? 'qa-red' : ''}">${r}${s}</span>`;
 };
 
-async function pushAction(req) {
-  const seq = ((await get('match.seq')) ?? 0) + 1;
-  await engine.set('action.request', { ...req, seq });
-  let verdict = await get('rules.verdict');
-  if (verdict?.seq !== seq) verdict = (await engine.call('action.dispatch', { ...req, seq })).data;
-  return verdict ?? { ok: false, rule: 'ERR', text: 'no verdict' };
-}
-
-const driver = {
-  async snapshot() {
-    const pub = (await engine.call('table.public')).data;
-    const legal = (await engine.call('legal.actions')).data;
-    const fired = (await get('rules.fired')) ?? [];
-    const verdict = await get('rules.verdict');
-    const events = (await get('log.events')) ?? [];
-    const rules = [];
-    for (const id of ['C1','C2','C3','C4','C5','C6','C7','C8','C9','C10']) {
-      rules.push({ id, law: (await get(`rule.${id}.law`)) ?? '', fired: fired.includes(id),
-        ok: verdict ? !!verdict.ok : true, why: (await get(`rule.${id}.verdict`))?.why ?? '' });
-    }
-    const learners = [];
-    for (const seat of [1, 2]) {
-      learners.push({
-        seat,
-        weights: await Promise.all(WEIGHTS.map(async (k) => ({ key: k, value: Number((await get(`W.p${seat}.${k}`)) ?? 0) }))),
-        gen: await get(`learn.gen.p${seat}`),
-        receipts: ((await get(`learn.receipts.p${seat}`)) ?? []).length,
-        nudges: (await get(`learn.last.p${seat}`))?.nudges ?? [],
-        om: await get(`om.p${seat}`),
-      });
-    }
-    const thoughts = {};
-    for (const seat of [0, 1, 2]) thoughts[seat] = ((await get(`ai.thoughts.p${seat}`)) ?? []).slice(-8);
-    return { pub, legal, rules, verdict, events, learners, thoughts,
-      seq: String(pub.phase) + ':' + String(pub.pot) + ':' + String(events.length) + ':' + String(learners.map(l => l.gen)) };
-  },
-  act: (action, amount) => pushAction({ seat: mode === 'hvae' ? 1 : (action.seat ?? 0), action, amount }),
-  async step() {
-    const seed = 1 + Math.floor(rnd() * 1e9);
-    const step = (await engine.call('match.step', { seed, log: true })).data;
-    if (step?.wait) return { wait: true, seat: step.seat };
-    return step;
-  },
-  deal: () => engine.call('deal.hand', { seed: 1 + Math.floor(rnd() * 1e9) }),
-  async learn() {
-    if (!learnOn) return;
-    for (const seat of [1, 2]) await engine.call('learn.update', { seat });
-  },
-  show: () => engine.call('reveal.show'),
-  newMatch: () => engine.call('new_match'),
-  async setMode(m) {
-    mode = m;
-    await engine.call('new_match');
-    await engine.set('seats.cfg', m === 'hvae' ? { 0: 'fish', 1: 'human', 2: 'learn' } : { 0: 'fish', 1: 'learn', 2: 'learn' });
-    if (m === 'hvae') await engine.set('view.seat', 1); else await engine.set('view.seat', 0);
-  },
-};
+// viewer-local UI state (the driver keeps its own play state in module.mjs)
+let mode = 'hvae'; // 'hvae' (human seat 1) | 'cvc'
+let playing = false, tickBusy = false, playTimer = null;
 
 // ── render ────────────────────────────────────────────────────────────────────
-function mountHoldem(root) {
+function mountHoldem(root, driver, extras = {}) {
   root.classList.add('qa-root');
   root.innerHTML = `
     <style>${CSS}</style>
@@ -147,6 +86,10 @@ function mountHoldem(root) {
     </div>`;
 
   const $ = (id) => root.querySelector('#' + id);
+  // receipts surface — the shared renderer every plugin mounts
+  let receiptsApi = null;
+  if (extras.receipts && extras.engine)
+    receiptsApi = mountReceipts(root.querySelector('.qa-side-col'), extras.engine, { sources: extras.receipts.sources });
   const seatsEl = $('hh-seats'), commEl = $('hh-comm'), potEl = $('hh-pot');
   const bookEl = $('qa-book'), logEl = $('qa-log'), thoughtsEl = $('qa-thoughts');
   const bubbleEl = $('qa-bubble'), chipEl = $('qa-bubble-chip'), textEl = $('qa-bubble-text');
@@ -280,7 +223,7 @@ function mountHoldem(root) {
       if (mode === 'cvc') setPlaying(true);
     };
   });
-  $('hh-learn').onchange = (e) => { learnOn = e.target.checked; };
+  $('hh-learn').onchange = (e) => { driver.setLearning(e.target.checked); };
   $('hh-deal').onclick = async () => { await driver.deal(); lastSeq = null; await refresh(); };
   $('hh-step').onclick = async () => { if (mode === 'cvc') { await cvcTick(); } else { await doHumanStep(); } await refresh(); };
   $('hh-show').onclick = async () => { await driver.show(); lastSeq = null; await refresh(); };
@@ -294,7 +237,7 @@ function mountHoldem(root) {
 
   root.querySelector('[data-mode="hvae"]').classList.add('qa-active');
   (async () => { await driver.setMode('hvae'); await refresh(); })();
-  return { refresh };
+  return { refresh, receipts: receiptsApi };
 }
 
 const fmt = (x) => (x == null ? '–' : Number(x).toFixed(2));
@@ -393,4 +336,9 @@ const CSS = `
 .qa-grow { flex: 1; min-height: 120px; }
 `;
 
-mountHoldem(document.getElementById('app'));
+const engine = new QuiltEngine('view-holdem', { eager: true });
+engine.loadSheet(buildSheet());
+window.__engine = engine;
+const driver = createDriver(engine);
+window.__driver = driver;
+mountHoldem(document.getElementById('app'), driver, { engine, receipts });

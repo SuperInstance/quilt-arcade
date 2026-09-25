@@ -1,0 +1,84 @@
+{
+  "id": "tictactoe",
+  "version": "1.0.0",
+  "title": "TicTacToe — the template game",
+  "kind": "grid-game",
+  "entry": "./module.mjs",
+  "iframe": "index.html",
+  "cells": [
+    "ai.minimax",
+    "board.grid",
+    "board.r1c1",
+    "board.r1c2",
+    "board.r1c3",
+    "board.r2c1",
+    "board.r2c2",
+    "board.r2c3",
+    "board.r3c1",
+    "board.r3c2",
+    "board.r3c3",
+    "legal.moves",
+    "log.events",
+    "match.seq",
+    "match.step",
+    "move.arbiter",
+    "move.dispatch",
+    "move.push",
+    "move.request",
+    "new_game",
+    "phase.current",
+    "rule.R1.check",
+    "rule.R1.law",
+    "rule.R1.verdict",
+    "rule.R2.check",
+    "rule.R2.law",
+    "rule.R2.verdict",
+    "rule.R3.check",
+    "rule.R3.law",
+    "rule.R3.verdict",
+    "rule.R4.check",
+    "rule.R4.law",
+    "rule.R4.verdict",
+    "rules.book",
+    "rules.fired",
+    "rules.verdict",
+    "score.o",
+    "score.x",
+    "turn.current",
+    "winner.current",
+    "winner.line"
+  ],
+  "listeners": [
+    {
+      "id": "move.push",
+      "watch": [
+        "move.request"
+      ],
+      "action": "move.dispatch"
+    }
+  ],
+  "receipts": {
+    "sources": [
+      {
+        "cell": "log.events",
+        "chained": false,
+        "hint": "log.events — the sheet audit trail, one line per accepted/refused move"
+      }
+    ],
+    "min": 1
+  },
+  "slots": [
+    "judge",
+    "jester",
+    "predictor"
+  ],
+  "deps": {
+    "engine": "../../engine/index.js",
+    "shared": [
+      "kit",
+      "driver",
+      "viewer",
+      "receipts"
+    ]
+  }
+}
