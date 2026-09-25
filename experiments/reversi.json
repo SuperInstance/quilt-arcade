@@ -1,0 +1,435 @@
+{
+  "game": "reversi",
+  "gens": 24,
+  "games_per_gen": 8,
+  "alpha": 0.04,
+  "theta0": {
+    "corner": 0,
+    "x": 0,
+    "edge": 0,
+    "mobility": -1,
+    "frontier": 0
+  },
+  "baseline": {
+    "corner": 3,
+    "x": -1,
+    "edge": 1,
+    "mobility": -0.5,
+    "frontier": -0.2
+  },
+  "curve": [
+    {
+      "gen": 1,
+      "wins": 5,
+      "losses": 3,
+      "draws": 0,
+      "cornerCaps": 17,
+      "win_rate": 63,
+      "theta": {
+        "corner": 0.28,
+        "x": -0.07999999999999999,
+        "edge": 0.5599999999999999,
+        "mobility": -0.7879999999999998,
+        "frontier": 0.7880000000000004
+      },
+      "theta_corner": 0.28,
+      "theta_mobility": -0.7879999999999998
+    },
+    {
+      "gen": 2,
+      "wins": 3,
+      "losses": 5,
+      "draws": 0,
+      "cornerCaps": 12,
+      "win_rate": 38,
+      "theta": {
+        "corner": 0.43999999999999995,
+        "x": -0.32,
+        "edge": -0.28,
+        "mobility": -1.7560000000000007,
+        "frontier": -0.5399999999999998
+      },
+      "theta_corner": 0.43999999999999995,
+      "theta_mobility": -1.7560000000000007
+    },
+    {
+      "gen": 3,
+      "wins": 2,
+      "losses": 6,
+      "draws": 0,
+      "cornerCaps": 11,
+      "win_rate": 25,
+      "theta": {
+        "corner": 0.24000000000000002,
+        "x": -0.68,
+        "edge": -1.2400000000000004,
+        "mobility": -4.200000000000002,
+        "frontier": -3.628000000000002
+      },
+      "theta_corner": 0.24000000000000002,
+      "theta_mobility": -4.200000000000002
+    },
+    {
+      "gen": 4,
+      "wins": 5,
+      "losses": 3,
+      "draws": 0,
+      "cornerCaps": 15,
+      "win_rate": 63,
+      "theta": {
+        "corner": 0.7600000000000001,
+        "x": -0.5199999999999999,
+        "edge": -0.72,
+        "mobility": -3.588000000000003,
+        "frontier": -2.704000000000001
+      },
+      "theta_corner": 0.7600000000000001,
+      "theta_mobility": -3.588000000000003
+    },
+    {
+      "gen": 5,
+      "wins": 2,
+      "losses": 6,
+      "draws": 0,
+      "cornerCaps": 14,
+      "win_rate": 25,
+      "theta": {
+        "corner": 0.68,
+        "x": -1.0400000000000003,
+        "edge": -1.6000000000000008,
+        "mobility": -5.284000000000007,
+        "frontier": -5.112000000000007
+      },
+      "theta_corner": 0.68,
+      "theta_mobility": -5.284000000000007
+    },
+    {
+      "gen": 6,
+      "wins": 2,
+      "losses": 6,
+      "draws": 0,
+      "cornerCaps": 14,
+      "win_rate": 25,
+      "theta": {
+        "corner": 0.36,
+        "x": -1.4800000000000006,
+        "edge": -2.360000000000001,
+        "mobility": -5.100000000000005,
+        "frontier": -4.9320000000000075
+      },
+      "theta_corner": 0.36,
+      "theta_mobility": -5.100000000000005
+    },
+    {
+      "gen": 7,
+      "wins": 3,
+      "losses": 5,
+      "draws": 0,
+      "cornerCaps": 14,
+      "win_rate": 38,
+      "theta": {
+        "corner": 0.5199999999999999,
+        "x": -1.760000000000001,
+        "edge": -2.6400000000000015,
+        "mobility": -5.348000000000008,
+        "frontier": -5.184000000000005
+      },
+      "theta_corner": 0.5199999999999999,
+      "theta_mobility": -5.348000000000008
+    },
+    {
+      "gen": 8,
+      "wins": 5,
+      "losses": 3,
+      "draws": 0,
+      "cornerCaps": 17,
+      "win_rate": 63,
+      "theta": {
+        "corner": 0.8800000000000002,
+        "x": -1.5200000000000007,
+        "edge": -2.280000000000001,
+        "mobility": -3.7640000000000144,
+        "frontier": -3.672000000000014
+      },
+      "theta_corner": 0.8800000000000002,
+      "theta_mobility": -3.7640000000000144
+    },
+    {
+      "gen": 9,
+      "wins": 1,
+      "losses": 7,
+      "draws": 0,
+      "cornerCaps": 9,
+      "win_rate": 13,
+      "theta": {
+        "corner": 0.68,
+        "x": -1.760000000000001,
+        "edge": -2.9600000000000017,
+        "mobility": -5.848000000000004,
+        "frontier": -6
+      },
+      "theta_corner": 0.68,
+      "theta_mobility": -5.848000000000004
+    },
+    {
+      "gen": 10,
+      "wins": 6,
+      "losses": 2,
+      "draws": 0,
+      "cornerCaps": 16,
+      "win_rate": 75,
+      "theta": {
+        "corner": 1.1600000000000004,
+        "x": -1.2000000000000004,
+        "edge": -1.8400000000000007,
+        "mobility": -2.5720000000000183,
+        "frontier": -2.5320000000000085
+      },
+      "theta_corner": 1.1600000000000004,
+      "theta_mobility": -2.5720000000000183
+    },
+    {
+      "gen": 11,
+      "wins": 4,
+      "losses": 4,
+      "draws": 0,
+      "cornerCaps": 17,
+      "win_rate": 50,
+      "theta": {
+        "corner": 1.3600000000000005,
+        "x": -1.2000000000000004,
+        "edge": -1.6400000000000006,
+        "mobility": -2.6280000000000183,
+        "frontier": -2.3520000000000083
+      },
+      "theta_corner": 1.3600000000000005,
+      "theta_mobility": -2.6280000000000183
+    },
+    {
+      "gen": 12,
+      "wins": 4,
+      "losses": 4,
+      "draws": 0,
+      "cornerCaps": 15,
+      "win_rate": 50,
+      "theta": {
+        "corner": 1.880000000000001,
+        "x": -1.3600000000000005,
+        "edge": -1.4800000000000004,
+        "mobility": -2.180000000000018,
+        "frontier": -1.3960000000000075
+      },
+      "theta_corner": 1.880000000000001,
+      "theta_mobility": -2.180000000000018
+    },
+    {
+      "gen": 13,
+      "wins": 3,
+      "losses": 5,
+      "draws": 0,
+      "cornerCaps": 13,
+      "win_rate": 38,
+      "theta": {
+        "corner": 1.9200000000000008,
+        "x": -1.5600000000000007,
+        "edge": -1.7200000000000006,
+        "mobility": -3.440000000000019,
+        "frontier": -2.212000000000008
+      },
+      "theta_corner": 1.9200000000000008,
+      "theta_mobility": -3.440000000000019
+    },
+    {
+      "gen": 14,
+      "wins": 5,
+      "losses": 3,
+      "draws": 0,
+      "cornerCaps": 22,
+      "win_rate": 63,
+      "theta": {
+        "corner": 2.320000000000001,
+        "x": -1.4000000000000006,
+        "edge": -1.4000000000000004,
+        "mobility": -1.9600000000000177,
+        "frontier": -0.1520000000000067
+      },
+      "theta_corner": 2.320000000000001,
+      "theta_mobility": -1.9600000000000177
+    },
+    {
+      "gen": 15,
+      "wins": 4,
+      "losses": 4,
+      "draws": 0,
+      "cornerCaps": 20,
+      "win_rate": 50,
+      "theta": {
+        "corner": 2.4800000000000013,
+        "x": -1.6800000000000008,
+        "edge": -1.3600000000000003,
+        "mobility": -2.144000000000018,
+        "frontier": -0.872000000000007
+      },
+      "theta_corner": 2.4800000000000013,
+      "theta_mobility": -2.144000000000018
+    },
+    {
+      "gen": 16,
+      "wins": 3,
+      "losses": 5,
+      "draws": 0,
+      "cornerCaps": 10,
+      "win_rate": 38,
+      "theta": {
+        "corner": 2.7200000000000015,
+        "x": -1.920000000000001,
+        "edge": -1.2800000000000002,
+        "mobility": -3.144000000000019,
+        "frontier": -1.7320000000000075
+      },
+      "theta_corner": 2.7200000000000015,
+      "theta_mobility": -3.144000000000019
+    },
+    {
+      "gen": 17,
+      "wins": 5,
+      "losses": 3,
+      "draws": 0,
+      "cornerCaps": 17,
+      "win_rate": 63,
+      "theta": {
+        "corner": 3.400000000000002,
+        "x": -2.200000000000001,
+        "edge": -0.15999999999999967,
+        "mobility": -2.116000000000018,
+        "frontier": 1.791999999999994
+      },
+      "theta_corner": 3.400000000000002,
+      "theta_mobility": -2.116000000000018
+    },
+    {
+      "gen": 18,
+      "wins": 3,
+      "losses": 4,
+      "draws": 1,
+      "cornerCaps": 15,
+      "win_rate": 38,
+      "theta": {
+        "corner": 3.480000000000002,
+        "x": -2.360000000000001,
+        "edge": -0.5599999999999996,
+        "mobility": -3.0480000000000187,
+        "frontier": -0.4040000000000069
+      },
+      "theta_corner": 3.480000000000002,
+      "theta_mobility": -3.0480000000000187
+    },
+    {
+      "gen": 19,
+      "wins": 5,
+      "losses": 3,
+      "draws": 0,
+      "cornerCaps": 17,
+      "win_rate": 63,
+      "theta": {
+        "corner": 4.000000000000003,
+        "x": -2.4800000000000013,
+        "edge": -0.2799999999999997,
+        "mobility": -2.1400000000000157,
+        "frontier": 1.0359999999999938
+      },
+      "theta_corner": 4.000000000000003,
+      "theta_mobility": -2.1400000000000157
+    },
+    {
+      "gen": 20,
+      "wins": 5,
+      "losses": 3,
+      "draws": 0,
+      "cornerCaps": 17,
+      "win_rate": 63,
+      "theta": {
+        "corner": 4.280000000000003,
+        "x": -2.320000000000001,
+        "edge": 0.8400000000000005,
+        "mobility": -0.8680000000000145,
+        "frontier": 4.072000000000002
+      },
+      "theta_corner": 4.280000000000003,
+      "theta_mobility": -0.8680000000000145
+    },
+    {
+      "gen": 21,
+      "wins": 3,
+      "losses": 5,
+      "draws": 0,
+      "cornerCaps": 15,
+      "win_rate": 38,
+      "theta": {
+        "corner": 4.640000000000003,
+        "x": -2.7200000000000015,
+        "edge": -0.3199999999999997,
+        "mobility": -2.0680000000000156,
+        "frontier": 0.6159999999999995
+      },
+      "theta_corner": 4.640000000000003,
+      "theta_mobility": -2.0680000000000156
+    },
+    {
+      "gen": 22,
+      "wins": 2,
+      "losses": 6,
+      "draws": 0,
+      "cornerCaps": 13,
+      "win_rate": 25,
+      "theta": {
+        "corner": 4.520000000000003,
+        "x": -2.9600000000000017,
+        "edge": -1.2000000000000002,
+        "mobility": -4.616000000000013,
+        "frontier": -1.9240000000000022
+      },
+      "theta_corner": 4.520000000000003,
+      "theta_mobility": -4.616000000000013
+    },
+    {
+      "gen": 23,
+      "wins": 4,
+      "losses": 4,
+      "draws": 0,
+      "cornerCaps": 14,
+      "win_rate": 50,
+      "theta": {
+        "corner": 4.840000000000003,
+        "x": -2.9600000000000017,
+        "edge": -1.4400000000000004,
+        "mobility": -4.412000000000009,
+        "frontier": -1.3200000000000016
+      },
+      "theta_corner": 4.840000000000003,
+      "theta_mobility": -4.412000000000009
+    },
+    {
+      "gen": 24,
+      "wins": 6,
+      "losses": 2,
+      "draws": 0,
+      "cornerCaps": 22,
+      "win_rate": 75,
+      "theta": {
+        "corner": 5.480000000000004,
+        "x": -3.040000000000002,
+        "edge": -0.15999999999999967,
+        "mobility": -1.8360000000000096,
+        "frontier": 1.5440000000000005
+      },
+      "theta_corner": 5.480000000000004,
+      "theta_mobility": -1.8360000000000096
+    }
+  ],
+  "checks": {
+    "pass": 12,
+    "fail": 0
+  },
+  "generated": "2026-09-25T03:18:34.996Z"
+}

@@ -1,0 +1,819 @@
+{
+  "id": "reversi",
+  "title": "Quilt Arcade — Reversi (rules-as-cells + learning loop)",
+  "cells": [
+    {
+      "id": "rules.book",
+      "kind": "value",
+      "value": "REVERSI — RULEBOOK v1\n\nR1 (bounds)       A disc is placed by naming a square (rows 1-8, columns A-H).\n                  Squares outside the 8x8 grid do not exist; naming one is\n                  not a move. The board is unchanged.\n\nR2 (empty)        A disc may only be placed on an EMPTY square. An occupied\n                  square is closed for the rest of the game.\n\nR3 (sandwich)     The placed disc must bracket one or more straight,\n                  unbroken lines of enemy discs between itself and another\n                  disc of the placer's own colour: own ... enemy(enemy)* own.\n                  EVERY enemy disc on every bracketed line converts to the\n                  placer's colour in the same move — this is the flip. If no\n                  line is bracketed in any of the 8 directions (N,NE,E,SE,S,\n                  SW,W,NW), the placement is illegal and the board is\n                  unchanged. Flipped discs may themselves be flipped back\n                  later; the board never remembers.\n\nR4 (pass)         If the player to move has NO legal placement (no square\n                  satisfies R1+R2+R3), the turn is a PASS: it is announced,\n                  nothing is placed, and the opponent moves again.\n\nR5 (end)          The game ends when the board is full, or when NEITHER\n                  player has a legal placement (passes in succession). A\n                  closed board refuses every move and changes nothing.\n\nR6 (score)        When the board closes, each side scores one point per own\n                  disc. Higher score wins; equal scores draw. The score cells\n                  recompute live after every accepted move.\n\nTURN (derived)    Black moves first. After every accepted placement (with its\n                  flips) the turn passes to the other colour, unless R4 makes\n                  it stay. Refused moves never pass the turn.",
+      "description": "the complete ruleset; every clause is ported 1:1 to a rule.N.check cell"
+    },
+    {
+      "id": "rule.R1.law",
+      "kind": "value",
+      "value": "R1 (bounds): squares outside the 8x8 grid do not exist; naming one is not a move.",
+      "description": "clause R1 quoted from rules.book"
+    },
+    {
+      "id": "rule.R1.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause R1 (rule-bubble UI reads this)"
+    },
+    {
+      "id": "rule.R2.law",
+      "kind": "value",
+      "value": "R2 (empty): a disc may only be placed on an empty square.",
+      "description": "clause R2 quoted from rules.book"
+    },
+    {
+      "id": "rule.R2.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause R2 (rule-bubble UI reads this)"
+    },
+    {
+      "id": "rule.R3.law",
+      "kind": "value",
+      "value": "R3 (sandwich): own...enemy*...own with no gaps converts every bracketed enemy disc; no bracket = illegal.",
+      "description": "clause R3 quoted from rules.book"
+    },
+    {
+      "id": "rule.R3.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause R3 (rule-bubble UI reads this)"
+    },
+    {
+      "id": "rule.R4.law",
+      "kind": "value",
+      "value": "R4 (pass): a player with no legal placement passes; the opponent moves again.",
+      "description": "clause R4 quoted from rules.book"
+    },
+    {
+      "id": "rule.R4.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause R4 (rule-bubble UI reads this)"
+    },
+    {
+      "id": "rule.R5.law",
+      "kind": "value",
+      "value": "R5 (end): full board or neither side able to move closes the game.",
+      "description": "clause R5 quoted from rules.book"
+    },
+    {
+      "id": "rule.R5.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause R5 (rule-bubble UI reads this)"
+    },
+    {
+      "id": "rule.R6.law",
+      "kind": "value",
+      "value": "R6 (score): one point per own disc; higher wins, equal draws.",
+      "description": "clause R6 quoted from rules.book"
+    },
+    {
+      "id": "rule.R6.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause R6 (rule-bubble UI reads this)"
+    },
+    {
+      "id": "rules.fired",
+      "kind": "value",
+      "value": [],
+      "description": "clauses that came into play for the last action"
+    },
+    {
+      "id": "rules.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "master verdict of the last pushed move"
+    },
+    {
+      "id": "board.r1c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A1: '' | B | W"
+    },
+    {
+      "id": "board.r1c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B1: '' | B | W"
+    },
+    {
+      "id": "board.r1c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C1: '' | B | W"
+    },
+    {
+      "id": "board.r1c4",
+      "kind": "value",
+      "value": "",
+      "description": "square D1: '' | B | W"
+    },
+    {
+      "id": "board.r1c5",
+      "kind": "value",
+      "value": "",
+      "description": "square E1: '' | B | W"
+    },
+    {
+      "id": "board.r1c6",
+      "kind": "value",
+      "value": "",
+      "description": "square F1: '' | B | W"
+    },
+    {
+      "id": "board.r1c7",
+      "kind": "value",
+      "value": "",
+      "description": "square G1: '' | B | W"
+    },
+    {
+      "id": "board.r1c8",
+      "kind": "value",
+      "value": "",
+      "description": "square H1: '' | B | W"
+    },
+    {
+      "id": "board.r2c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A2: '' | B | W"
+    },
+    {
+      "id": "board.r2c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B2: '' | B | W"
+    },
+    {
+      "id": "board.r2c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C2: '' | B | W"
+    },
+    {
+      "id": "board.r2c4",
+      "kind": "value",
+      "value": "",
+      "description": "square D2: '' | B | W"
+    },
+    {
+      "id": "board.r2c5",
+      "kind": "value",
+      "value": "",
+      "description": "square E2: '' | B | W"
+    },
+    {
+      "id": "board.r2c6",
+      "kind": "value",
+      "value": "",
+      "description": "square F2: '' | B | W"
+    },
+    {
+      "id": "board.r2c7",
+      "kind": "value",
+      "value": "",
+      "description": "square G2: '' | B | W"
+    },
+    {
+      "id": "board.r2c8",
+      "kind": "value",
+      "value": "",
+      "description": "square H2: '' | B | W"
+    },
+    {
+      "id": "board.r3c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A3: '' | B | W"
+    },
+    {
+      "id": "board.r3c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B3: '' | B | W"
+    },
+    {
+      "id": "board.r3c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C3: '' | B | W"
+    },
+    {
+      "id": "board.r3c4",
+      "kind": "value",
+      "value": "",
+      "description": "square D3: '' | B | W"
+    },
+    {
+      "id": "board.r3c5",
+      "kind": "value",
+      "value": "",
+      "description": "square E3: '' | B | W"
+    },
+    {
+      "id": "board.r3c6",
+      "kind": "value",
+      "value": "",
+      "description": "square F3: '' | B | W"
+    },
+    {
+      "id": "board.r3c7",
+      "kind": "value",
+      "value": "",
+      "description": "square G3: '' | B | W"
+    },
+    {
+      "id": "board.r3c8",
+      "kind": "value",
+      "value": "",
+      "description": "square H3: '' | B | W"
+    },
+    {
+      "id": "board.r4c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A4: '' | B | W"
+    },
+    {
+      "id": "board.r4c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B4: '' | B | W"
+    },
+    {
+      "id": "board.r4c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C4: '' | B | W"
+    },
+    {
+      "id": "board.r4c4",
+      "kind": "value",
+      "value": "",
+      "description": "square D4: '' | B | W"
+    },
+    {
+      "id": "board.r4c5",
+      "kind": "value",
+      "value": "",
+      "description": "square E4: '' | B | W"
+    },
+    {
+      "id": "board.r4c6",
+      "kind": "value",
+      "value": "",
+      "description": "square F4: '' | B | W"
+    },
+    {
+      "id": "board.r4c7",
+      "kind": "value",
+      "value": "",
+      "description": "square G4: '' | B | W"
+    },
+    {
+      "id": "board.r4c8",
+      "kind": "value",
+      "value": "",
+      "description": "square H4: '' | B | W"
+    },
+    {
+      "id": "board.r5c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A5: '' | B | W"
+    },
+    {
+      "id": "board.r5c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B5: '' | B | W"
+    },
+    {
+      "id": "board.r5c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C5: '' | B | W"
+    },
+    {
+      "id": "board.r5c4",
+      "kind": "value",
+      "value": "",
+      "description": "square D5: '' | B | W"
+    },
+    {
+      "id": "board.r5c5",
+      "kind": "value",
+      "value": "",
+      "description": "square E5: '' | B | W"
+    },
+    {
+      "id": "board.r5c6",
+      "kind": "value",
+      "value": "",
+      "description": "square F5: '' | B | W"
+    },
+    {
+      "id": "board.r5c7",
+      "kind": "value",
+      "value": "",
+      "description": "square G5: '' | B | W"
+    },
+    {
+      "id": "board.r5c8",
+      "kind": "value",
+      "value": "",
+      "description": "square H5: '' | B | W"
+    },
+    {
+      "id": "board.r6c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A6: '' | B | W"
+    },
+    {
+      "id": "board.r6c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B6: '' | B | W"
+    },
+    {
+      "id": "board.r6c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C6: '' | B | W"
+    },
+    {
+      "id": "board.r6c4",
+      "kind": "value",
+      "value": "",
+      "description": "square D6: '' | B | W"
+    },
+    {
+      "id": "board.r6c5",
+      "kind": "value",
+      "value": "",
+      "description": "square E6: '' | B | W"
+    },
+    {
+      "id": "board.r6c6",
+      "kind": "value",
+      "value": "",
+      "description": "square F6: '' | B | W"
+    },
+    {
+      "id": "board.r6c7",
+      "kind": "value",
+      "value": "",
+      "description": "square G6: '' | B | W"
+    },
+    {
+      "id": "board.r6c8",
+      "kind": "value",
+      "value": "",
+      "description": "square H6: '' | B | W"
+    },
+    {
+      "id": "board.r7c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A7: '' | B | W"
+    },
+    {
+      "id": "board.r7c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B7: '' | B | W"
+    },
+    {
+      "id": "board.r7c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C7: '' | B | W"
+    },
+    {
+      "id": "board.r7c4",
+      "kind": "value",
+      "value": "",
+      "description": "square D7: '' | B | W"
+    },
+    {
+      "id": "board.r7c5",
+      "kind": "value",
+      "value": "",
+      "description": "square E7: '' | B | W"
+    },
+    {
+      "id": "board.r7c6",
+      "kind": "value",
+      "value": "",
+      "description": "square F7: '' | B | W"
+    },
+    {
+      "id": "board.r7c7",
+      "kind": "value",
+      "value": "",
+      "description": "square G7: '' | B | W"
+    },
+    {
+      "id": "board.r7c8",
+      "kind": "value",
+      "value": "",
+      "description": "square H7: '' | B | W"
+    },
+    {
+      "id": "board.r8c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A8: '' | B | W"
+    },
+    {
+      "id": "board.r8c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B8: '' | B | W"
+    },
+    {
+      "id": "board.r8c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C8: '' | B | W"
+    },
+    {
+      "id": "board.r8c4",
+      "kind": "value",
+      "value": "",
+      "description": "square D8: '' | B | W"
+    },
+    {
+      "id": "board.r8c5",
+      "kind": "value",
+      "value": "",
+      "description": "square E8: '' | B | W"
+    },
+    {
+      "id": "board.r8c6",
+      "kind": "value",
+      "value": "",
+      "description": "square F8: '' | B | W"
+    },
+    {
+      "id": "board.r8c7",
+      "kind": "value",
+      "value": "",
+      "description": "square G8: '' | B | W"
+    },
+    {
+      "id": "board.r8c8",
+      "kind": "value",
+      "value": "",
+      "description": "square H8: '' | B | W"
+    },
+    {
+      "id": "board.grid",
+      "kind": "value",
+      "value": [
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "W",
+          "B",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "B",
+          "W",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ]
+      ],
+      "description": "mirror of the 64 board cells (set by the arbiter in the same pass)"
+    },
+    {
+      "id": "flip.trace",
+      "kind": "value",
+      "value": [],
+      "description": "the exact placement+flip sequence of the last accepted move (cascade animation reads this)"
+    },
+    {
+      "id": "legal.moves",
+      "kind": "program",
+      "code": "\n\nconst COLS = 'ABCDEFGH';\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst DIRS = [[-1,0,'N'],[-1,1,'NE'],[0,1,'E'],[1,1,'SE'],[1,0,'S'],[1,-1,'SW'],[0,-1,'W'],[-1,-1,'NW']];\n// full legal scan: every square R1+R2+R3 would accept, with its flips\nconst legalScan = (grid, player) => {\n  const o = opp(player), out = [];\n  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {\n    if (grid[r][c] !== '') continue;\n    let n_total = 0; const rays = [];\n    for (const d of DIRS) {\n      let n = 0, rr = r + d[0], cc = c + d[1];\n      while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === o) { n++; rr += d[0]; cc += d[1]; }\n      if (n && rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === player) { n_total += n; rays.push(d[2]); }\n    }\n    if (n_total) out.push({ r, c, sq: sq(r, c), flips: n_total, rays });\n  }\n  return out;\n};\n// exact flip list for one placement (the R3 port, shared by checker + AI sims)\nconst flipsAt = (grid, r, c, player) => {\n  const o = opp(player), flips = [];\n  for (const d of DIRS) {\n    const line = [];\n    let rr = r + d[0], cc = c + d[1];\n    while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === o) { line.push([rr, cc]); rr += d[0]; cc += d[1]; }\n    if (line.length && rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === player)\n      for (const [a, b] of line) flips.push({ r: a, c: b, sq: sq(a, b), from: o, to: player, ray: d[2] });\n  }\n  return flips;\n};\nconst grid = (await runtime.get('board.grid')).data;\nconst phase = (await runtime.get('phase.current')).data;\nconst player = input?.player ?? (await runtime.get('turn.current')).data;\nif (phase !== 'play') return [];\nreturn legalScan(grid, player);",
+      "description": "R1+R2+R3 scan for the side to move (hints, AI, R4/R5)",
+      "deps": [
+        "board.grid",
+        "turn.current",
+        "phase.current"
+      ]
+    },
+    {
+      "id": "turn.current",
+      "kind": "value",
+      "value": "B",
+      "description": "B | W"
+    },
+    {
+      "id": "phase.current",
+      "kind": "value",
+      "value": "play",
+      "description": "play | over"
+    },
+    {
+      "id": "winner.current",
+      "kind": "value",
+      "value": null,
+      "description": "B | W | draw | null"
+    },
+    {
+      "id": "pass.streak",
+      "kind": "value",
+      "value": 0,
+      "description": "consecutive passes (R5 uses >= 2)"
+    },
+    {
+      "id": "pass.note",
+      "kind": "value",
+      "value": "",
+      "description": "latest pass announcement (R4)"
+    },
+    {
+      "id": "match.seq",
+      "kind": "value",
+      "value": 0,
+      "description": "monotonic request sequence"
+    },
+    {
+      "id": "score.b",
+      "kind": "formula",
+      "expr": "board.grid.flat().filter(x => x === 'B').length",
+      "description": "BLACK discs — live"
+    },
+    {
+      "id": "score.w",
+      "kind": "formula",
+      "expr": "board.grid.flat().filter(x => x === 'W').length",
+      "description": "WHITE discs — live"
+    },
+    {
+      "id": "rule.R1.check",
+      "kind": "program",
+      "code": "\n\nconst COLS = 'ABCDEFGH';\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst DIRS = [[-1,0,'N'],[-1,1,'NE'],[0,1,'E'],[1,1,'SE'],[1,0,'S'],[1,-1,'SW'],[0,-1,'W'],[-1,-1,'NW']];\n// full legal scan: every square R1+R2+R3 would accept, with its flips\nconst legalScan = (grid, player) => {\n  const o = opp(player), out = [];\n  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {\n    if (grid[r][c] !== '') continue;\n    let n_total = 0; const rays = [];\n    for (const d of DIRS) {\n      let n = 0, rr = r + d[0], cc = c + d[1];\n      while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === o) { n++; rr += d[0]; cc += d[1]; }\n      if (n && rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === player) { n_total += n; rays.push(d[2]); }\n    }\n    if (n_total) out.push({ r, c, sq: sq(r, c), flips: n_total, rays });\n  }\n  return out;\n};\n// exact flip list for one placement (the R3 port, shared by checker + AI sims)\nconst flipsAt = (grid, r, c, player) => {\n  const o = opp(player), flips = [];\n  for (const d of DIRS) {\n    const line = [];\n    let rr = r + d[0], cc = c + d[1];\n    while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === o) { line.push([rr, cc]); rr += d[0]; cc += d[1]; }\n    if (line.length && rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === player)\n      for (const [a, b] of line) flips.push({ r: a, c: b, sq: sq(a, b), from: o, to: player, ray: d[2] });\n  }\n  return flips;\n};\nconst r = input?.r, c = input?.c;\nconst fired = !(Number.isInteger(r) && r >= 0 && r < 8 && Number.isInteger(c) && c >= 0 && c < 8);\nreturn { fired, why: fired\n  ? 'Square ' + JSON.stringify(input?.r) + ',' + JSON.stringify(input?.c) + ' is outside the 8x8 grid — naming it is not a move (rows 1-8, columns A-H).'\n  : 'Square ' + sq(r, c) + ' exists.' };",
+      "description": "R1 port: bounds",
+      "deps": []
+    },
+    {
+      "id": "rule.R2.check",
+      "kind": "program",
+      "code": "\n\nconst COLS = 'ABCDEFGH';\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst DIRS = [[-1,0,'N'],[-1,1,'NE'],[0,1,'E'],[1,1,'SE'],[1,0,'S'],[1,-1,'SW'],[0,-1,'W'],[-1,-1,'NW']];\n// full legal scan: every square R1+R2+R3 would accept, with its flips\nconst legalScan = (grid, player) => {\n  const o = opp(player), out = [];\n  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {\n    if (grid[r][c] !== '') continue;\n    let n_total = 0; const rays = [];\n    for (const d of DIRS) {\n      let n = 0, rr = r + d[0], cc = c + d[1];\n      while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === o) { n++; rr += d[0]; cc += d[1]; }\n      if (n && rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === player) { n_total += n; rays.push(d[2]); }\n    }\n    if (n_total) out.push({ r, c, sq: sq(r, c), flips: n_total, rays });\n  }\n  return out;\n};\n// exact flip list for one placement (the R3 port, shared by checker + AI sims)\nconst flipsAt = (grid, r, c, player) => {\n  const o = opp(player), flips = [];\n  for (const d of DIRS) {\n    const line = [];\n    let rr = r + d[0], cc = c + d[1];\n    while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === o) { line.push([rr, cc]); rr += d[0]; cc += d[1]; }\n    if (line.length && rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === player)\n      for (const [a, b] of line) flips.push({ r: a, c: b, sq: sq(a, b), from: o, to: player, ray: d[2] });\n  }\n  return flips;\n};\nconst r = input?.r, c = input?.c, grid = input?.grid;\nconst holder = (grid && r >= 0 && r < 8 && c >= 0 && c < 8) ? grid[r][c] : null;\nconst fired = !!holder;\nreturn { fired, why: fired\n  ? 'Square ' + sq(r, c) + ' already holds a ' + (holder === 'B' ? 'BLACK' : 'WHITE') + ' disc — a disc may only be placed on an empty square.'\n  : 'Square ' + (r != null ? sq(r, c) : '?') + ' is empty.' };",
+      "description": "R2 port: empty square",
+      "deps": []
+    },
+    {
+      "id": "rule.R3.check",
+      "kind": "program",
+      "code": "\n\nconst COLS = 'ABCDEFGH';\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst DIRS = [[-1,0,'N'],[-1,1,'NE'],[0,1,'E'],[1,1,'SE'],[1,0,'S'],[1,-1,'SW'],[0,-1,'W'],[-1,-1,'NW']];\n// full legal scan: every square R1+R2+R3 would accept, with its flips\nconst legalScan = (grid, player) => {\n  const o = opp(player), out = [];\n  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {\n    if (grid[r][c] !== '') continue;\n    let n_total = 0; const rays = [];\n    for (const d of DIRS) {\n      let n = 0, rr = r + d[0], cc = c + d[1];\n      while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === o) { n++; rr += d[0]; cc += d[1]; }\n      if (n && rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === player) { n_total += n; rays.push(d[2]); }\n    }\n    if (n_total) out.push({ r, c, sq: sq(r, c), flips: n_total, rays });\n  }\n  return out;\n};\n// exact flip list for one placement (the R3 port, shared by checker + AI sims)\nconst flipsAt = (grid, r, c, player) => {\n  const o = opp(player), flips = [];\n  for (const d of DIRS) {\n    const line = [];\n    let rr = r + d[0], cc = c + d[1];\n    while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === o) { line.push([rr, cc]); rr += d[0]; cc += d[1]; }\n    if (line.length && rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === player)\n      for (const [a, b] of line) flips.push({ r: a, c: b, sq: sq(a, b), from: o, to: player, ray: d[2] });\n  }\n  return flips;\n};\nconst grid = input?.grid, r = input?.r, c = input?.c, player = input?.player;\nconst flips = flipsAt(grid, r, c, player);\nif (!flips.length) return { fired: true, flips: [], rays: [],\n  why: 'Placing at ' + sq(r, c) + ' brackets no enemy line in any of the 8 directions (R3 needs own...enemy...own with no gaps), so the placement is illegal.' };\nconst rays = [...new Set(flips.map(f => f.ray))];\nreturn { fired: false, flips, rays,\n  why: sq(r, c) + ' brackets ' + flips.length + ' enemy disc' + (flips.length > 1 ? 's' : '') + ' along ' + rays.join('+') + ' — all convert to ' + (player === 'B' ? 'BLACK' : 'WHITE') + '.' };",
+      "description": "R3 port: sandwich + exact flip list",
+      "deps": []
+    },
+    {
+      "id": "rule.R4.check",
+      "kind": "program",
+      "code": "\n\nconst COLS = 'ABCDEFGH';\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst DIRS = [[-1,0,'N'],[-1,1,'NE'],[0,1,'E'],[1,1,'SE'],[1,0,'S'],[1,-1,'SW'],[0,-1,'W'],[-1,-1,'NW']];\n// full legal scan: every square R1+R2+R3 would accept, with its flips\nconst legalScan = (grid, player) => {\n  const o = opp(player), out = [];\n  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {\n    if (grid[r][c] !== '') continue;\n    let n_total = 0; const rays = [];\n    for (const d of DIRS) {\n      let n = 0, rr = r + d[0], cc = c + d[1];\n      while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === o) { n++; rr += d[0]; cc += d[1]; }\n      if (n && rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === player) { n_total += n; rays.push(d[2]); }\n    }\n    if (n_total) out.push({ r, c, sq: sq(r, c), flips: n_total, rays });\n  }\n  return out;\n};\n// exact flip list for one placement (the R3 port, shared by checker + AI sims)\nconst flipsAt = (grid, r, c, player) => {\n  const o = opp(player), flips = [];\n  for (const d of DIRS) {\n    const line = [];\n    let rr = r + d[0], cc = c + d[1];\n    while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === o) { line.push([rr, cc]); rr += d[0]; cc += d[1]; }\n    if (line.length && rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === player)\n      for (const [a, b] of line) flips.push({ r: a, c: b, sq: sq(a, b), from: o, to: player, ray: d[2] });\n  }\n  return flips;\n};\nconst grid = input?.grid, player = input?.player;\nconst n = legalScan(grid, player).length;\nreturn { fired: n === 0, n,\n  why: n === 0\n    ? (player === 'B' ? 'BLACK' : 'WHITE') + ' has NO legal placement (no square brackets an enemy line) — the turn is a pass; the opponent moves again.'\n    : (player === 'B' ? 'BLACK' : 'WHITE') + ' has ' + n + ' legal placement(s) — no pass.' };",
+      "description": "R4 port: no legal placement = pass",
+      "deps": []
+    },
+    {
+      "id": "rule.R5.check",
+      "kind": "program",
+      "code": "\n\nconst COLS = 'ABCDEFGH';\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst DIRS = [[-1,0,'N'],[-1,1,'NE'],[0,1,'E'],[1,1,'SE'],[1,0,'S'],[1,-1,'SW'],[0,-1,'W'],[-1,-1,'NW']];\n// full legal scan: every square R1+R2+R3 would accept, with its flips\nconst legalScan = (grid, player) => {\n  const o = opp(player), out = [];\n  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {\n    if (grid[r][c] !== '') continue;\n    let n_total = 0; const rays = [];\n    for (const d of DIRS) {\n      let n = 0, rr = r + d[0], cc = c + d[1];\n      while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === o) { n++; rr += d[0]; cc += d[1]; }\n      if (n && rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === player) { n_total += n; rays.push(d[2]); }\n    }\n    if (n_total) out.push({ r, c, sq: sq(r, c), flips: n_total, rays });\n  }\n  return out;\n};\n// exact flip list for one placement (the R3 port, shared by checker + AI sims)\nconst flipsAt = (grid, r, c, player) => {\n  const o = opp(player), flips = [];\n  for (const d of DIRS) {\n    const line = [];\n    let rr = r + d[0], cc = c + d[1];\n    while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === o) { line.push([rr, cc]); rr += d[0]; cc += d[1]; }\n    if (line.length && rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === player)\n      for (const [a, b] of line) flips.push({ r: a, c: b, sq: sq(a, b), from: o, to: player, ray: d[2] });\n  }\n  return flips;\n};\nconst grid = input?.grid, passStreak = input?.passStreak ?? 0;\nconst full = grid.every(row => row.every(x => x !== ''));\nconst none = legalScan(grid, 'B').length === 0 && legalScan(grid, 'W').length === 0;\nconst fired = full || none || passStreak >= 2;\nreturn { fired, full, none,\n  why: !fired ? 'The game is still open.'\n    : full ? 'The board is FULL (64 discs) — the game ends.'\n    : passStreak >= 2 ? 'Two passes in succession — neither side can move — the game ends.'\n    : 'Neither side has a legal placement — the game ends.' };",
+      "description": "R5 port: full board / neither can move",
+      "deps": []
+    },
+    {
+      "id": "rule.R6.check",
+      "kind": "program",
+      "code": "\nconst grid = input?.grid;\nlet b = 0, w = 0;\nfor (const row of grid) for (const x of row) { if (x === 'B') b++; else if (x === 'W') w++; }\nconst verdict = b === w ? 'draw' : (b > w ? 'B' : 'W');\nreturn { fired: true, b, w, verdict,\n  why: 'Final tally: BLACK ' + b + ' - WHITE ' + w + ' — ' + (verdict === 'draw' ? 'a draw.' : (verdict === 'B' ? 'BLACK' : 'WHITE') + ' wins.') };",
+      "description": "R6 port: tally + verdict",
+      "deps": []
+    },
+    {
+      "id": "move.arbiter",
+      "kind": "program",
+      "code": "\n// THE REFEREE — knows no rules; it sequences the rule cells and applies\n// their effects. Every verdict you see was produced by a rule cell.\n\nconst COLS = 'ABCDEFGH';\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst DIRS = [[-1,0,'N'],[-1,1,'NE'],[0,1,'E'],[1,1,'SE'],[1,0,'S'],[1,-1,'SW'],[0,-1,'W'],[-1,-1,'NW']];\n// full legal scan: every square R1+R2+R3 would accept, with its flips\nconst legalScan = (grid, player) => {\n  const o = opp(player), out = [];\n  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {\n    if (grid[r][c] !== '') continue;\n    let n_total = 0; const rays = [];\n    for (const d of DIRS) {\n      let n = 0, rr = r + d[0], cc = c + d[1];\n      while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === o) { n++; rr += d[0]; cc += d[1]; }\n      if (n && rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === player) { n_total += n; rays.push(d[2]); }\n    }\n    if (n_total) out.push({ r, c, sq: sq(r, c), flips: n_total, rays });\n  }\n  return out;\n};\n// exact flip list for one placement (the R3 port, shared by checker + AI sims)\nconst flipsAt = (grid, r, c, player) => {\n  const o = opp(player), flips = [];\n  for (const d of DIRS) {\n    const line = [];\n    let rr = r + d[0], cc = c + d[1];\n    while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === o) { line.push([rr, cc]); rr += d[0]; cc += d[1]; }\n    if (line.length && rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === player)\n      for (const [a, b] of line) flips.push({ r: a, c: b, sq: sq(a, b), from: o, to: player, ray: d[2] });\n  }\n  return flips;\n};\nconst seq = input?.seq ?? 0;\nconst r = input?.r, c = input?.c, player = input?.player;\nconst last = (await runtime.get('match.seq')).data;\nif (seq <= last) return { ok: false, rule: 'DUP', text: 'stale request (seq ' + seq + ' <= ' + last + ') — nothing happened.' };\nconst done = async (verdict) => {\n  const log = (await runtime.get('log.events')).data;\n  await runtime.set('log.events', [...log.slice(-199), {\n    ts: Date.now(), kind: verdict.ok ? 'apply' : 'refuse', rule: verdict.rule ?? null, seq, text: verdict.text }]);\n  await runtime.set('rules.verdict', { ...verdict, seq, ts: Date.now() });\n  return verdict;\n};\n\nlet grid = (await runtime.get('board.grid')).data.map(row => row.slice());\nconst phase = (await runtime.get('phase.current')).data;\nconst fired = [];\n\nif (phase !== 'play') {\n  const r5 = (await runtime.call('rule.R5.check', { grid, passStreak: 2, seq })).data;\n  await runtime.set('rule.R5.verdict', { ...r5, ts: Date.now() });\n  await runtime.set('rules.fired', ['R5']);\n  return done({ ok: false, rule: 'R5', text: 'Move refused — ' + r5.why });\n}\n\n// R1 bounds\nconst r1 = (await runtime.call('rule.R1.check', { r, c, seq })).data;\nawait runtime.set('rule.R1.verdict', { ...r1, ts: Date.now() });\nfired.push('R1');\nif (r1.fired) { await runtime.set('rules.fired', fired); return done({ ok: false, rule: 'R1', text: r1.why }); }\n\n// R2 empty\nconst r2 = (await runtime.call('rule.R2.check', { r, c, grid, seq })).data;\nawait runtime.set('rule.R2.verdict', { ...r2, ts: Date.now() });\nfired.push('R2');\nif (r2.fired) { await runtime.set('rules.fired', fired); return done({ ok: false, rule: 'R2', text: r2.why }); }\n\n// R3 sandwich\nconst r3 = (await runtime.call('rule.R3.check', { grid, r, c, player, seq })).data;\nawait runtime.set('rule.R3.verdict', { ...r3, ts: Date.now() });\nfired.push('R3');\nif (r3.fired) { await runtime.set('rules.fired', fired); return done({ ok: false, rule: 'R3', text: r3.why }); }\n\n// ACCEPTED — apply: placement first, then the flip cascade, ray by ray.\nconst trace = [{ sq: sq(r, c), from: '', to: player, ray: 'place' }];\nawait runtime.set('board.r' + (r + 1) + 'c' + (c + 1), player);\ngrid[r][c] = player;\nfor (const f of r3.flips) {\n  await runtime.set('board.r' + (f.r + 1) + 'c' + (f.c + 1), player);\n  grid[f.r][f.c] = player;\n  trace.push(f);\n}\nawait runtime.set('board.grid', grid);\nawait runtime.set('flip.trace', trace);\n\n// TURN + R4 pass + R5 end\nconst next = opp(player);\nlet streak = (await runtime.get('pass.streak')).data;\nconst nextLegal = legalScan(grid, next);\nif (nextLegal.length) {\n  streak = 0;\n  await runtime.set('turn.current', next);\n  await runtime.set('rule.R4.verdict', { fired: false, n: nextLegal.length, why: nextLegal.length + ' legal placements for ' + (next === 'B' ? 'BLACK' : 'WHITE') + '.', ts: Date.now() });\n} else {\n  const curLegal = legalScan(grid, player);\n  const r4 = (await runtime.call('rule.R4.check', { grid, player: next, seq })).data;\n  await runtime.set('rule.R4.verdict', { ...r4, ts: Date.now() });\n  fired.push('R4');\n  if (curLegal.length) {\n    streak = streak + 1;\n    await runtime.set('pass.note', (next === 'B' ? 'BLACK' : 'WHITE') + ' passes — ' + (player === 'B' ? 'BLACK' : 'WHITE') + ' moves again.');\n  } else {\n    // R5: neither side can move\n    const r5 = (await runtime.call('rule.R5.check', { grid, passStreak: streak + 2, seq })).data;\n    await runtime.set('rule.R5.verdict', { ...r5, ts: Date.now() });\n    fired.push('R5');\n    const r6 = (await runtime.call('rule.R6.check', { grid, seq })).data;\n    await runtime.set('rule.R6.verdict', { ...r6, ts: Date.now() });\n    fired.push('R6');\n    await runtime.set('rules.fired', fired);\n    await runtime.set('phase.current', 'over');\n    await runtime.set('winner.current', r6.verdict);\n    await runtime.set('pass.streak', 0);\n    await runtime.set('match.seq', seq);\n    return done({ ok: true, rule: 'R5', text: r5.why + ' ' + r6.why, fired, trace });\n  }\n}\n\n// R5 after every move: board full?\nconst r5b = (await runtime.call('rule.R5.check', { grid, passStreak: streak, seq })).data;\nawait runtime.set('rule.R5.verdict', { ...r5b, ts: Date.now() });\nif (r5b.fired) {\n  fired.push('R5');\n  const r6 = (await runtime.call('rule.R6.check', { grid, seq })).data;\n  await runtime.set('rule.R6.verdict', { ...r6, ts: Date.now() });\n  fired.push('R6');\n  await runtime.set('rules.fired', fired);\n  await runtime.set('phase.current', 'over');\n  await runtime.set('winner.current', r6.verdict);\n  await runtime.set('pass.streak', 0);\n  await runtime.set('match.seq', seq);\n  return done({ ok: true, rule: 'R5', text: r5b.why + ' ' + r6.why, fired, trace });\n}\n\nawait runtime.set('pass.streak', streak);\nawait runtime.set('match.seq', seq);\nawait runtime.set('rules.fired', fired);\nreturn done({ ok: true, rule: 'R3', text: r3.why + ' ' + (nextLegal.length ? 'Turn: ' + (next === 'B' ? 'BLACK' : 'WHITE') + '.' : ''), fired, trace });",
+      "description": "THE REFEREE — sequences rule cells, applies the flip cascade, keeps the ledger",
+      "deps": [
+        "move.request"
+      ]
+    },
+    {
+      "id": "move.dispatch",
+      "kind": "program",
+      "code": "\n// push trampoline: listener passes {changed, value}; driver may pass the\n// request directly. Both converge on the same arbitration.\nconst ev = input ?? {};\nlet req = null;\nif (ev.r != null) req = ev;\nelse if (ev.value?.r != null) req = ev.value;\nelse if (caller?.metadata?.current?.r != null) req = caller.metadata.current;\nelse req = (await runtime.get('move.request')).data;\nif (!req || req.r == null) return { skipped: true };\nreturn (await runtime.call('move.arbiter', req)).data;",
+      "description": "push trampoline: move.request -> move.arbiter",
+      "deps": [
+        "move.request"
+      ]
+    },
+    {
+      "id": "move.push",
+      "kind": "listener",
+      "watch": [
+        "move.request"
+      ],
+      "action": "move.dispatch",
+      "description": "push of one value drives the whole cascade"
+    },
+    {
+      "id": "move.request",
+      "kind": "value",
+      "value": null,
+      "description": "UI writes {r,c,player,seq} here — the entire input surface"
+    },
+    {
+      "id": "ai.weights",
+      "kind": "value",
+      "value": {
+        "corner": 0,
+        "x": 0,
+        "edge": 0,
+        "mobility": -1,
+        "frontier": 0
+      },
+      "description": "learner policy weights (theta) — updated by learn.update, displayed as a bar strip"
+    },
+    {
+      "id": "ai.fixed_weights",
+      "kind": "value",
+      "value": {
+        "corner": 3,
+        "x": -1,
+        "edge": 1,
+        "mobility": -0.5,
+        "frontier": -0.2
+      },
+      "description": "frozen baseline opponent weights (never learns — the control group)"
+    },
+    {
+      "id": "ai.move_log",
+      "kind": "value",
+      "value": [],
+      "description": "feature vectors of the learner's moves this game (consumed by learn.update)"
+    },
+    {
+      "id": "ai.features",
+      "kind": "program",
+      "code": "\n\nconst COLS = 'ABCDEFGH';\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst DIRS = [[-1,0,'N'],[-1,1,'NE'],[0,1,'E'],[1,1,'SE'],[1,0,'S'],[1,-1,'SW'],[0,-1,'W'],[-1,-1,'NW']];\n// full legal scan: every square R1+R2+R3 would accept, with its flips\nconst legalScan = (grid, player) => {\n  const o = opp(player), out = [];\n  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {\n    if (grid[r][c] !== '') continue;\n    let n_total = 0; const rays = [];\n    for (const d of DIRS) {\n      let n = 0, rr = r + d[0], cc = c + d[1];\n      while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === o) { n++; rr += d[0]; cc += d[1]; }\n      if (n && rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === player) { n_total += n; rays.push(d[2]); }\n    }\n    if (n_total) out.push({ r, c, sq: sq(r, c), flips: n_total, rays });\n  }\n  return out;\n};\n// exact flip list for one placement (the R3 port, shared by checker + AI sims)\nconst flipsAt = (grid, r, c, player) => {\n  const o = opp(player), flips = [];\n  for (const d of DIRS) {\n    const line = [];\n    let rr = r + d[0], cc = c + d[1];\n    while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === o) { line.push([rr, cc]); rr += d[0]; cc += d[1]; }\n    if (line.length && rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === player)\n      for (const [a, b] of line) flips.push({ r: a, c: b, sq: sq(a, b), from: o, to: player, ray: d[2] });\n  }\n  return flips;\n};\n// feature vector of a CANDIDATE move, evaluated on the position AFTER playing\n// it. Scaled to roughly [-2, 2] so one learning rate fits all.\nconst grid = input?.grid, r = input?.r, c = input?.c, player = input?.player;\nconst g2 = grid.map(row => row.slice());\nfor (const f of flipsAt(g2, r, c, player)) g2[f.r][f.c] = player;\ng2[r][c] = player;\nconst corners = [[0,0],[0,7],[7,0],[7,7]];\nconst isCorner = corners.some(([a, b]) => a === r && b === c) ? 1 : 0;\nconst isX = corners.some(([a, b]) => Math.abs(a - r) === 1 && Math.abs(b - c) === 1) ? 1 : 0;\nconst isEdge = (r === 0 || r === 7 || c === 0 || c === 7) && !isCorner ? 1 : 0;\nconst mobility = legalScan(g2, opp(player)).length / 10;      // enemy options after my move (lower is better -> weight goes negative)\nlet frontier = 0;\nfor (let rr = 0; rr < 8; rr++) for (let cc = 0; cc < 8; cc++) {\n  if (g2[rr][cc] !== player) continue;\n  for (const d of DIRS) { const a = rr + d[0], b = cc + d[1];\n    if (a >= 0 && a < 8 && b >= 0 && b < 8 && g2[a][b] === '') { frontier++; break; } }\n}\nconst f = { corner: isCorner, x: isX, edge: isEdge, mobility: mobility, frontier: frontier / 10 };\nreturn { f, gridAfter: g2 };",
+      "description": "feature vector of a candidate move (pure)",
+      "deps": []
+    },
+    {
+      "id": "ai.choose",
+      "kind": "program",
+      "code": "\n\nconst COLS = 'ABCDEFGH';\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst DIRS = [[-1,0,'N'],[-1,1,'NE'],[0,1,'E'],[1,1,'SE'],[1,0,'S'],[1,-1,'SW'],[0,-1,'W'],[-1,-1,'NW']];\n// full legal scan: every square R1+R2+R3 would accept, with its flips\nconst legalScan = (grid, player) => {\n  const o = opp(player), out = [];\n  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {\n    if (grid[r][c] !== '') continue;\n    let n_total = 0; const rays = [];\n    for (const d of DIRS) {\n      let n = 0, rr = r + d[0], cc = c + d[1];\n      while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === o) { n++; rr += d[0]; cc += d[1]; }\n      if (n && rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === player) { n_total += n; rays.push(d[2]); }\n    }\n    if (n_total) out.push({ r, c, sq: sq(r, c), flips: n_total, rays });\n  }\n  return out;\n};\n// exact flip list for one placement (the R3 port, shared by checker + AI sims)\nconst flipsAt = (grid, r, c, player) => {\n  const o = opp(player), flips = [];\n  for (const d of DIRS) {\n    const line = [];\n    let rr = r + d[0], cc = c + d[1];\n    while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === o) { line.push([rr, cc]); rr += d[0]; cc += d[1]; }\n    if (line.length && rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && grid[rr][cc] === player)\n      for (const [a, b] of line) flips.push({ r: a, c: b, sq: sq(a, b), from: o, to: player, ray: d[2] });\n  }\n  return flips;\n};\n\n    const rng = (seed) => { let a = (seed ?? 1) >>> 0;\n      return () => { a |= 0; a = (a + 0x6D2B79F5) | 0;\n        let t = Math.imul(a ^ (a >>> 15), 1 | a);\n        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;\n        return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };\n// score every legal move: dot(weights, features); epsilon among top-3.\nconst grid = (await runtime.get('board.grid')).data;\nconst player = input?.player ?? (await runtime.get('turn.current')).data;\nconst weights = input?.weights ?? (await runtime.get('ai.weights')).data;\nconst seed = input?.seed ?? 1;\nconst phase = (await runtime.get('phase.current')).data;\nif (phase !== 'play') return null;\nconst legal = legalScan(grid, player);\nif (!legal.length) return { pass: true, player };\nconst scored = [];\nfor (const m of legal) {\n  const { f } = (await runtime.call('ai.features', { grid, r: m.r, c: m.c, player, seq: seed + ':' + m.sq })).data;\n  let s = 0; for (const k of Object.keys(weights)) s += (weights[k] ?? 0) * (f[k] ?? 0);\n  scored.push({ ...m, score: Math.round(s * 1000) / 1000, f });\n}\nscored.sort((a, b) => b.score - a.score);\nconst rnd = rng(seed * 7919 + r2s(grid));\nconst top = scored.slice(0, Math.min(3, scored.length));\nconst pick = rnd() < 0.75 ? top[0] : top[Math.floor(rnd() * top.length)];\nreturn { ...pick, player, considered: scored.length,\n  why: player + ' plays ' + pick.sq + ' (score ' + pick.score + ', weights ' + JSON.stringify(weights) + ')' };\nfunction r2s(g) { let h = 0; for (const row of g) for (const x of row) h = (h * 31 + (x === 'B' ? 1 : x === 'W' ? 2 : 0)) | 0; return h >>> 0; }",
+      "description": "score legal moves by dot(theta, features); seeded tie-break",
+      "deps": [
+        "board.grid",
+        "turn.current",
+        "phase.current",
+        "ai.weights"
+      ]
+    },
+    {
+      "id": "learn.alpha",
+      "kind": "value",
+      "value": 0.04,
+      "description": "perceptron learning rate"
+    },
+    {
+      "id": "learn.gen",
+      "kind": "value",
+      "value": 0,
+      "description": "generations learned so far"
+    },
+    {
+      "id": "learn.receipts",
+      "kind": "value",
+      "value": [],
+      "description": "fnv1a64 hash-chained witness receipts: one per generation"
+    },
+    {
+      "id": "learn.last",
+      "kind": "value",
+      "value": null,
+      "description": "snapshot of the latest update"
+    },
+    {
+      "id": "learn.update",
+      "kind": "program",
+      "code": "\n\n    const fnv1a64 = (s) => { let h = 0xcbf29ce484222325n;\n      const p = 0x100000001b3n, m = 0xffffffffffffffffn;\n      for (let i = 0; i < s.length; i++) { h ^= BigInt(s.charCodeAt(i)); h = (h * p) & m; }\n      return h.toString(16).padStart(16, '0'); };\n    const canon = (row) => { const s = {}; for (const k of Object.keys(row).sort()) s[k] = row[k];\n      return JSON.stringify(s); };\n    const GENESIS_PREV = '0'.repeat(16);\n// learn.update input {side} — the learner's colour for the finished game.\n// Averaged perceptron: theta_i += alpha * result * f_i for each logged move.\nconst side = input?.side ?? 'B';\nconst winner = (await runtime.get('winner.current')).data;\nconst s = winner === 'draw' ? 0 : (winner === side ? 1 : -1);\nconst alpha = (await runtime.get('learn.alpha')).data;\nconst moves = (await runtime.get('ai.move_log')).data;\nconst theta = { ...(await runtime.get('ai.weights')).data };\nfor (const f of moves) for (const k of Object.keys(theta))\n  theta[k] = Math.max(-6, Math.min(6, theta[k] + alpha * s * (f[k] ?? 0)));\nconst gen = (await runtime.get('learn.gen')).data + 1;\nawait runtime.set('ai.weights', theta);\nawait runtime.set('learn.gen', gen);\n// win rate over the last 10 receipts where the learner played this side\nconst receipts = (await runtime.get('learn.receipts')).data;\nconst hist = receipts.filter(x => x.side === side).slice(0, 9);\nconst wins = (s > 0 ? 1 : 0) + hist.filter(x => x.result === 'W').length;\nconst rate = Math.round(((wins / (hist.length + 1)) * 100));\nconst prev = receipts.length ? receipts[receipts.length - 1].row_hash : GENESIS_PREV;\nconst fields = { seq: gen, side, result: s > 0 ? 'W' : s < 0 ? 'L' : 'D',\n  score_b: (await runtime.get('score.b')).data, score_w: (await runtime.get('score.w')).data,\n  theta_hash: fnv1a64(canon(theta)), win_rate10: rate };\nconst row = { ...fields, prev_hash: prev, row_hash: fnv1a64(canon({ ...fields, prev_hash: prev })) };\nawait runtime.set('learn.receipts', [...receipts, row]);\nawait runtime.set('ai.move_log', []);\nawait runtime.set('learn.last', { gen, theta, receipt: row });\nreturn { gen, theta, result: row.result, win_rate10: rate, receipt: row };",
+      "description": "perceptron update + witness receipt (call once per finished game)",
+      "deps": [
+        "winner.current",
+        "score.b",
+        "score.w",
+        "ai.move_log",
+        "ai.weights"
+      ]
+    },
+    {
+      "id": "match.step",
+      "kind": "program",
+      "code": "\n// one AI ply for whoever is to move. input {weights?, seed?, log?}\n// log=true appends the chosen move's features to ai.move_log (the learner).\n// Passes never reach here in a normal loop: the arbiter's R4 keeps the turn\n// with the mover after a pass, and R5 closes the game when both are stuck.\nconst phase = (await runtime.get('phase.current')).data;\nif (phase !== 'play') return { over: true };\nconst player = (await runtime.get('turn.current')).data;\nconst choice = (await runtime.call('ai.choose', { player, weights: input?.weights, seed: input?.seed ?? 1 })).data;\nif (!choice || choice.pass) {\n  // In a normal loop this is unreachable: the arbiter's R4 keeps the turn with\n  // the mover after a pass, and R5 closes the game when both sides are stuck.\n  // Returned defensively if a driver ever calls match.step on a stuck side.\n  return { pass: true, player };\n}\nif (input?.log) {\n  const log = (await runtime.get('ai.move_log')).data;\n  await runtime.set('ai.move_log', [...log, choice.f]);\n}\n// NOTE: match.seq is owned by the arbiter (it bumps it on acceptance and its\n// DUP guard compares against it) — match.step must NOT pre-increment it.\nreturn (await runtime.call('move.arbiter', { r: choice.r, c: choice.c, player, seq: (await runtime.get('match.seq')).data + 1 })).data;",
+      "description": "one AI ply (input {weights?, seed?, log?}); loop it for computer-vs-computer",
+      "deps": [
+        "phase.current",
+        "turn.current",
+        "ai.weights"
+      ]
+    },
+    {
+      "id": "new_game",
+      "kind": "program",
+      "code": "\nfor (let r = 1; r <= 8; r++) for (let c = 1; c <= 8; c++)\n  await runtime.set('board.r' + r + 'c' + c, '');\nconst g = [];\nfor (let r = 0; r < 8; r++) { const row = []; for (let c = 0; c < 8; c++) row.push(''); g.push(row); }\ng[3][3] = 'W'; g[4][4] = 'W'; g[3][4] = 'B'; g[4][3] = 'B';\nfor (const [rr, cc, p] of [[3,3,'W'],[4,4,'W'],[3,4,'B'],[4,3,'B']])\n  await runtime.set('board.r' + (rr + 1) + 'c' + (cc + 1), p);\nawait runtime.set('board.grid', g);\nawait runtime.set('turn.current', 'B');\nawait runtime.set('phase.current', 'play');\nawait runtime.set('winner.current', null);\nawait runtime.set('pass.streak', 0);\nawait runtime.set('pass.note', '');\nawait runtime.set('flip.trace', []);\nfor (const n of ['R1','R2','R3','R4','R5','R6']) await runtime.set('rule.' + n + '.verdict', null);\nawait runtime.set('rules.fired', []);\nawait runtime.set('rules.verdict', null);\nawait runtime.set('match.seq', 0);\nawait runtime.set('move.request', null);\nawait runtime.set('ai.move_log', []);\nconst log = (await runtime.get('log.events')).data;\nawait runtime.set('log.events', [...log.slice(-199), { ts: Date.now(), kind: 'new_game', text: 'board reset — BLACK to move' }]);\nreturn { ok: true };",
+      "description": "reset the board, keep the learning ledger",
+      "deps": [
+        "board.grid"
+      ]
+    },
+    {
+      "id": "log.events",
+      "kind": "value",
+      "value": [],
+      "description": "append-only audit: pushes, refusals, flips, passes, resets (cap 200)"
+    }
+  ]
+}

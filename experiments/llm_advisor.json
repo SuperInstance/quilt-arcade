@@ -1,0 +1,10 @@
+{
+  "provider": "mock (deterministic, same code path)",
+  "provider_calls": 1,
+  "checks": {
+    "pass": 4,
+    "fail": 0
+  },
+  "doctrine": "letter-coded menu fence; arbiter verifies every suggestion; offline -> honest heuristic fallback",
+  "generated": "2026-09-25T00:50:08.758Z"
+}

@@ -1,0 +1,297 @@
+{
+  "id": "tictactoe",
+  "title": "Quilt Arcade — TicTacToe (the template game)",
+  "cells": [
+    {
+      "id": "rules.book",
+      "kind": "value",
+      "value": "TIC-TAC-TOE — RULEBOOK v1\n\nR1 (bounds)      A mark is placed by naming a square (row 1-3, column A-C).\n                 A square outside the 3x3 grid does not exist; naming one is\n                 not a move. The board is unchanged.\n\nR2 (empty)       A mark may only be placed on an EMPTY square. A square that\n                 already holds X or O is closed to both players for the rest\n                 of the game.\n\nR3 (three-in-row) If after placing a mark the player owns three squares in a\n                 straight line (row, column, or diagonal), the player wins and\n                 the board is closed. The winning line is exactly the three\n                 squares named by the rule check.\n\nR4 (draw/closure) If every square holds a mark and no player owns a line, the\n                 game is a draw and the board is closed. A closed board\n                 accepts no further moves; any attempted move is refused and\n                 changes nothing.\n\nTURN (derived)   X moves first. After every accepted move, the turn passes to\n                 the other player. Refused moves do not pass the turn.",
+      "description": "the complete ruleset in precise language; every clause is ported 1:1 to a rule.N.check cell"
+    },
+    {
+      "id": "rule.R1.law",
+      "kind": "value",
+      "value": "R1 (bounds): a square outside the 3x3 grid does not exist; naming one is not a move.",
+      "description": "clause R1 as written (quoted from rules.book)"
+    },
+    {
+      "id": "rule.R1.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause R1 — bubbles/flash UI reads this"
+    },
+    {
+      "id": "rule.R2.law",
+      "kind": "value",
+      "value": "R2 (empty): a mark may only be placed on an empty square.",
+      "description": "clause R2 as written (quoted from rules.book)"
+    },
+    {
+      "id": "rule.R2.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause R2 — bubbles/flash UI reads this"
+    },
+    {
+      "id": "rule.R3.law",
+      "kind": "value",
+      "value": "R3 (three-in-row): three own squares in a straight line wins and closes the board.",
+      "description": "clause R3 as written (quoted from rules.book)"
+    },
+    {
+      "id": "rule.R3.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause R3 — bubbles/flash UI reads this"
+    },
+    {
+      "id": "rule.R4.law",
+      "kind": "value",
+      "value": "R4 (draw/closure): full board with no line is a draw; closed boards refuse all moves.",
+      "description": "clause R4 as written (quoted from rules.book)"
+    },
+    {
+      "id": "rule.R4.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause R4 — bubbles/flash UI reads this"
+    },
+    {
+      "id": "rules.fired",
+      "kind": "value",
+      "value": [],
+      "description": "clauses that came into play for the last action"
+    },
+    {
+      "id": "rules.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "master verdict of the last pushed move"
+    },
+    {
+      "id": "board.r1c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A1: '' | X | O"
+    },
+    {
+      "id": "board.r1c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B1: '' | X | O"
+    },
+    {
+      "id": "board.r1c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C1: '' | X | O"
+    },
+    {
+      "id": "board.r2c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A2: '' | X | O"
+    },
+    {
+      "id": "board.r2c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B2: '' | X | O"
+    },
+    {
+      "id": "board.r2c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C2: '' | X | O"
+    },
+    {
+      "id": "board.r3c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A3: '' | X | O"
+    },
+    {
+      "id": "board.r3c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B3: '' | X | O"
+    },
+    {
+      "id": "board.r3c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C3: '' | X | O"
+    },
+    {
+      "id": "board.grid",
+      "kind": "value",
+      "value": [
+        [
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          ""
+        ]
+      ],
+      "description": "mirror of the 9 board cells (set by the arbiter in the same pass)"
+    },
+    {
+      "id": "legal.moves",
+      "kind": "program",
+      "code": "\n// legal squares (R1+R2 applied): for hints and for drivers that sample moves\nconst grid = (await runtime.get('board.grid')).data;\nconst phase = (await runtime.get('phase.current')).data;\nif (phase !== 'play') return [];\nconst out = [];\nfor (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) if (!grid[r][c]) out.push({ r, c, sq: 'ABC'[c] + (r+1) });\nreturn out;",
+      "description": "squares R1+R2 currently allow",
+      "deps": [
+        "board.grid",
+        "phase.current"
+      ]
+    },
+    {
+      "id": "turn.current",
+      "kind": "value",
+      "value": "X",
+      "description": "whose turn"
+    },
+    {
+      "id": "phase.current",
+      "kind": "value",
+      "value": "play",
+      "description": "play | over"
+    },
+    {
+      "id": "winner.current",
+      "kind": "value",
+      "value": null,
+      "description": "X | O | draw | null"
+    },
+    {
+      "id": "winner.line",
+      "kind": "value",
+      "value": null,
+      "description": "winning squares (R3) for highlighting"
+    },
+    {
+      "id": "match.seq",
+      "kind": "value",
+      "value": 0,
+      "description": "monotonic move sequence — makes every arbiter call a distinct capability"
+    },
+    {
+      "id": "score.x",
+      "kind": "formula",
+      "expr": "board.grid.flat().filter(x => x === 'X').length",
+      "description": "X marks on the board"
+    },
+    {
+      "id": "score.o",
+      "kind": "formula",
+      "expr": "board.grid.flat().filter(x => x === 'O').length",
+      "description": "O marks on the board"
+    },
+    {
+      "id": "rule.R1.check",
+      "kind": "program",
+      "code": "\nconst r = input?.r, c = input?.c;\nconst fired = !(Number.isInteger(r) && r >= 0 && r < 3 && Number.isInteger(c) && c >= 0 && c < 3);\nreturn { fired, why: fired\n  ? 'Square ' + String(r) + ',' + String(c) + ' is outside the 3x3 grid — naming it is not a move (row 1-3, column A-C only).'\n  : 'Square ' + 'ABC'[c] + (r+1) + ' exists.' };",
+      "description": "R1 port: bounds",
+      "deps": []
+    },
+    {
+      "id": "rule.R2.check",
+      "kind": "program",
+      "code": "\nconst r = input?.r, c = input?.c, grid = input?.grid;\nconst holder = (grid && r >= 0 && r < 3 && c >= 0 && c < 3) ? grid[r][c] : null;\nconst fired = !!holder;\nreturn { fired, why: fired\n  ? 'Square ' + 'ABC'[c] + (r+1) + ' already holds ' + holder + ' — a mark may only be placed on an empty square.'\n  : 'Square ' + (r != null ? 'ABC'[c] + (r+1) : '?') + ' is empty.' };",
+      "description": "R2 port: empty square",
+      "deps": []
+    },
+    {
+      "id": "rule.R3.check",
+      "kind": "program",
+      "code": "\nconst grid = input?.grid, r = input?.r, c = input?.c, player = input?.player;\nconst LINES = [[[0,0],[0,1],[0,2]],[[1,0],[1,1],[1,2]],[[2,0],[2,1],[2,2]],[[0,0],[1,0],[2,0]],[[0,1],[1,1],[2,1]],[[0,2],[1,2],[2,2]],[[0,0],[1,1],[2,2]],[[0,2],[1,1],[2,0]]];\nconst sq = ([a,b]) => 'ABC'[b] + (a+1);\nfor (const line of LINES) {\n  if (!line.some(([a,b]) => a === r && b === c)) continue;\n  if (line.every(([a,b]) => grid[a][b] === player)) {\n    return { fired: true, line: line.map(sq),\n      why: player + ' owns three in a row: ' + line.map(sq).join(' - ') + '. ' + player + ' wins and the board is closed.' };\n  }\n}\nreturn { fired: false, why: 'No completed line passes through ' + 'ABC'[c] + (r+1) + '.' };",
+      "description": "R3 port: three-in-row through the placed square",
+      "deps": []
+    },
+    {
+      "id": "rule.R4.check",
+      "kind": "program",
+      "code": "\nconst grid = input?.grid;\nconst full = grid.every(row => row.every(x => x !== ''));\nconst played = input?.played ?? false;\nconst fired = played && full;\nreturn { fired, why: full\n  ? (fired ? 'Every square holds a mark and no line was completed — the game is a draw and the board is closed.'\n           : 'Board is full and closed.')\n  : 'Board is still open.' };",
+      "description": "R4 port: draw / closure",
+      "deps": []
+    },
+    {
+      "id": "move.arbiter",
+      "kind": "program",
+      "code": "\n// THE REFEREE — knows no rules itself; it runs the rule cells in clause order.\n// Every checker is invoked through runtime.call so the rules stay first-class,\n// inspectable cells (try engine.call('rule.R2.check', {r,c,grid,seq}) yourself).\nconst seq = input?.seq ?? 0;\nconst r = input?.r, c = input?.c, player = input?.player;\nconst done = input?.done ?? (async (verdict) => {\n  const log = (await runtime.get('log.events')).data;\n  await runtime.set('log.events', [...log.slice(-199), {\n    ts: Date.now(), kind: verdict.ok ? 'apply' : 'refuse', rule: verdict.rule ?? null,\n    seq, text: verdict.text }]);\n  await runtime.set('rules.verdict', { ...verdict, seq, ts: Date.now() });\n  return verdict;\n});\nconst last = (await runtime.get('match.seq')).data;\nif (seq <= last) return { ok: false, rule: 'DUP', text: 'stale request (seq ' + seq + ' <= ' + last + ') — nothing happened.' };\nconst grid = (await runtime.get('board.grid')).data.map(row => row.slice());\nconst phase = (await runtime.get('phase.current')).data;\nconst fired = [];\n\nif (phase !== 'play') {\n  const r4 = (await runtime.call('rule.R4.check', { grid, played: true, seq })).data;\n  await runtime.set('rule.R4.verdict', { ...r4, ts: Date.now() });\n  fired.push('R4');\n  await runtime.set('rules.fired', fired);\n  return done({ ok: false, rule: 'R4', text: 'Move refused — ' + r4.why });\n}\n\n// R1 bounds\nconst r1 = (await runtime.call('rule.R1.check', { r, c, seq })).data;\nawait runtime.set('rule.R1.verdict', { ...r1, ts: Date.now() });\nfired.push('R1');\nif (r1.fired) { await runtime.set('rules.fired', fired); return done({ ok: false, rule: 'R1', text: r1.why }); }\n\n// R2 empty\nconst r2 = (await runtime.call('rule.R2.check', { r, c, grid, seq })).data;\nawait runtime.set('rule.R2.verdict', { ...r2, ts: Date.now() });\nfired.push('R2');\nif (r2.fired) { await runtime.set('rules.fired', fired); return done({ ok: false, rule: 'R2', text: r2.why }); }\n\n// R2 accepted -> apply the placement (cells cascade: this cell, the mirror, scores)\nawait runtime.set('board.r' + (r+1) + 'c' + (c+1), player);\ngrid[r][c] = player;\nawait runtime.set('board.grid', grid);\n\n// R3 three-in-row\nconst r3 = (await runtime.call('rule.R3.check', { grid, r, c, player, seq })).data;\nawait runtime.set('rule.R3.verdict', { ...r3, ts: Date.now() });\nif (r3.fired) {\n  fired.push('R3');\n  await runtime.set('rules.fired', fired);\n  await runtime.set('phase.current', 'over');\n  await runtime.set('winner.current', player);\n  await runtime.set('winner.line', r3.line);\n  await runtime.set('match.seq', seq);\n  return done({ ok: true, rule: 'R3', text: r3.why, fired, line: r3.line });\n}\n\n// R4 draw\nconst r4 = (await runtime.call('rule.R4.check', { grid, played: true, seq })).data;\nawait runtime.set('rule.R4.verdict', { ...r4, ts: Date.now() });\nif (r4.fired) {\n  fired.push('R4');\n  await runtime.set('rules.fired', fired);\n  await runtime.set('phase.current', 'over');\n  await runtime.set('winner.current', 'draw');\n  await runtime.set('match.seq', seq);\n  return done({ ok: true, rule: 'R4', text: r4.why, fired });\n}\n\n// TURN passes\nawait runtime.set('turn.current', player === 'X' ? 'O' : 'X');\nawait runtime.set('match.seq', seq);\nawait runtime.set('rules.fired', fired);\nreturn done({ ok: true, rule: 'TURN', text: player + ' placed ' + 'ABC'[c] + (r+1) + '. ' + (player === 'X' ? 'O' : 'X') + ' to move.', fired });",
+      "description": "THE REFEREE — sequences rule cells, applies effects, keeps the ledger",
+      "deps": [
+        "move.request"
+      ]
+    },
+    {
+      "id": "move.dispatch",
+      "kind": "program",
+      "code": "\n// trampoline: the push of one value lands here; stale/empty pushes are ignored.\n// The listener passes {changed, value} as input; a driver may pass the request\n// itself. Both converge on the same arbitration.\nconst ev = input ?? {};\nlet req = null;\nif (ev.r != null) req = ev;\nelse if (ev.value?.r != null) req = ev.value;\nelse if (caller?.metadata?.current?.r != null) req = caller.metadata.current;\nelse req = (await runtime.get('move.request')).data;\nif (!req || req.r == null) return { skipped: true };\nreturn (await runtime.call('move.arbiter', req)).data;",
+      "description": "push trampoline: move.request -> move.arbiter (idempotent per seq)",
+      "deps": [
+        "move.request"
+      ]
+    },
+    {
+      "id": "move.push",
+      "kind": "listener",
+      "watch": [
+        "move.request"
+      ],
+      "action": "move.dispatch",
+      "description": "the push of one value: watching move.request drives the whole cascade"
+    },
+    {
+      "id": "move.request",
+      "kind": "value",
+      "value": null,
+      "description": "UI writes {r,c,player,seq} here — that push is the entire input surface"
+    },
+    {
+      "id": "ai.minimax",
+      "kind": "program",
+      "code": "\n// PERFECT PLAY — full minimax over the 3x3 tree (memoized). Cannot lose.\nconst me = input?.player ?? (await runtime.get('turn.current')).data;\nconst grid = (await runtime.get('board.grid')).data.map(row => row.slice());\nconst LINES = [[[0,0],[0,1],[0,2]],[[1,0],[1,1],[1,2]],[[2,0],[2,1],[2,2]],[[0,0],[1,0],[2,0]],[[0,1],[1,1],[2,1]],[[0,2],[1,2],[2,2]],[[0,0],[1,1],[2,2]],[[0,2],[1,1],[2,0]]];\nconst winnerOf = (g) => { for (const l of LINES) { const w = g[l[0][0]][l[0][1]];\n  if (w && w === g[l[1][0]][l[1][1]] && w === g[l[2][0]][l[2][1]]) return w; } return null; };\nconst empties = (g) => { const out = []; for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) if (!g[r][c]) out.push([r, c]); return out; };\nconst memo = new Map();\nfunction best(g, turn) {\n  const w = winnerOf(g);\n  if (w) return { score: w === me ? 1 : -1 };\n  const em = empties(g);\n  if (!em.length) return { score: 0 };\n  const k = g.flat().map(x => x || '.').join('') + turn;  // '.' guards empties: join('') would make distinct positions collide\n  if (memo.has(k)) return memo.get(k);\n  let bv = turn === me ? -2 : 2, bm = null;\n  for (const [r, c] of em) {\n    g[r][c] = turn;\n    const s = best(g, turn === 'X' ? 'O' : 'X').score;\n    g[r][c] = '';\n    if (turn === me ? s > bv : s < bv) { bv = s; bm = [r, c]; }\n  }\n  const out = { score: bv, r: bm ? bm[0] : null, c: bm ? bm[1] : null };\n  memo.set(k, out); return out;\n}\nconst b = best(grid, me);\nreturn { r: b.r, c: b.c, score: b.score, player: me,\n  reason: 'minimax: perfect play (score ' + b.score + ' from ' + me + ') — 1 win / 0 draw / -1 loss' };",
+      "description": "perfect play (memoized minimax)",
+      "deps": [
+        "board.grid",
+        "turn.current",
+        "phase.current"
+      ]
+    },
+    {
+      "id": "match.step",
+      "kind": "program",
+      "code": "\n// one AI ply — a driver calling this repeatedly plays a full game\nconst phase = (await runtime.get('phase.current')).data;\nif (phase !== 'play') return { over: true };\nconst player = (await runtime.get('turn.current')).data;\nconst best = (await runtime.call('ai.minimax', { player })).data;\nif (best.r == null) return { over: true };\n// NOTE: match.seq is owned by the arbiter (DUP guard + acceptance bump).\nreturn (await runtime.call('move.arbiter', { r: best.r, c: best.c, player, seq: (await runtime.get('match.seq')).data + 1 })).data;",
+      "description": "one AI ply; a driver calls this until it returns {over:true}",
+      "deps": [
+        "phase.current",
+        "turn.current"
+      ]
+    },
+    {
+      "id": "new_game",
+      "kind": "program",
+      "code": "\nfor (let r = 1; r <= 3; r++) for (let c = 1; c <= 3; c++)\n  await runtime.set('board.r' + r + 'c' + c, '');\nawait runtime.set('board.grid', [['','',''],['','',''],['','','']]);\nawait runtime.set('turn.current', 'X');\nawait runtime.set('phase.current', 'play');\nawait runtime.set('winner.current', null);\nawait runtime.set('winner.line', null);\nfor (const n of ['R1','R2','R3','R4']) await runtime.set('rule.' + n + '.verdict', null);\nawait runtime.set('rules.fired', []);\nawait runtime.set('rules.verdict', null);\nawait runtime.set('match.seq', 0);\nawait runtime.set('move.request', null);\nconst log = (await runtime.get('log.events')).data;\nawait runtime.set('log.events', [...log.slice(-199), { ts: Date.now(), kind: 'new_game', text: 'board reset — X to move' }]);\nreturn { ok: true };",
+      "description": "reset the board (logs the reset)",
+      "deps": [
+        "board.grid"
+      ]
+    },
+    {
+      "id": "log.events",
+      "kind": "value",
+      "value": [],
+      "description": "append-only audit: every push, refusal, win, reset (cap 200)"
+    }
+  ]
+}

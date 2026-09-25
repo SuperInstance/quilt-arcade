@@ -1,0 +1,644 @@
+{
+  "id": "connect4",
+  "title": "Quilt Arcade — Connect Four (gravity + threats as cells)",
+  "cells": [
+    {
+      "id": "rules.book",
+      "kind": "value",
+      "value": "CONNECT FOUR — RULEBOOK v1\n\nR1 (column)      A disc is played by naming a COLUMN (A-G). A drop that does\n                 not name an existing column is not a move; the board is\n                 unchanged.\n\nR2 (full)        A column holding 6 discs is FULL and accepts no further\n                 disc. Playing a full column is refused and the board is\n                 unchanged.\n\nR3 (gravity)     A played disc FALLS to the lowest empty square of its\n                 column (row 6 first). The disc never stops mid-column and\n                 never moves sideways. Every accepted play names its landing\n                 square.\n\nR4 (connect)     If after landing the mover owns FOUR (or more) discs in a\n                 straight line — horizontal, vertical, or either diagonal —\n                 the mover wins and the board is closed. The rule names the\n                 exact squares of the line.\n\nR5 (draw)        If all 42 squares hold discs and no line was completed, the\n                 game is a draw and the board is closed. A closed board\n                 refuses every move.\n\nR6 (threat)      ADVISORY: after every accepted play the sheet reports, for\n                 the side to move, every column that would win the game\n                 immediately (WIN NOW), and every column the OPPONENT would\n                 win immediately if given the turn (MUST BLOCK). Threats do\n                 not change the game; they are announced.\n\nTURN (derived)   Black moves first; turns alternate strictly. Refused moves\n                 never consume the turn.",
+      "description": "the complete ruleset; every clause is ported 1:1 to a rule.N.check cell"
+    },
+    {
+      "id": "rule.R1.law",
+      "kind": "value",
+      "value": "R1 (column): a play names a column A-G; anything else is not a move.",
+      "description": "clause R1 quoted from rules.book"
+    },
+    {
+      "id": "rule.R1.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause R1 (bubble UI reads this)"
+    },
+    {
+      "id": "rule.R2.law",
+      "kind": "value",
+      "value": "R2 (full): a column of 6 discs accepts no further disc.",
+      "description": "clause R2 quoted from rules.book"
+    },
+    {
+      "id": "rule.R2.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause R2 (bubble UI reads this)"
+    },
+    {
+      "id": "rule.R3.law",
+      "kind": "value",
+      "value": "R3 (gravity): the disc falls to the lowest empty square of its column.",
+      "description": "clause R3 quoted from rules.book"
+    },
+    {
+      "id": "rule.R3.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause R3 (bubble UI reads this)"
+    },
+    {
+      "id": "rule.R4.law",
+      "kind": "value",
+      "value": "R4 (connect): four own discs in a straight line win; the rule names the squares.",
+      "description": "clause R4 quoted from rules.book"
+    },
+    {
+      "id": "rule.R4.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause R4 (bubble UI reads this)"
+    },
+    {
+      "id": "rule.R5.law",
+      "kind": "value",
+      "value": "R5 (draw): 42 discs with no line is a draw; closed boards refuse everything.",
+      "description": "clause R5 quoted from rules.book"
+    },
+    {
+      "id": "rule.R5.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause R5 (bubble UI reads this)"
+    },
+    {
+      "id": "rule.R6.law",
+      "kind": "value",
+      "value": "R6 (threat): advisory scan — WIN NOW and MUST BLOCK columns for the side to move.",
+      "description": "clause R6 quoted from rules.book"
+    },
+    {
+      "id": "rule.R6.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause R6 (bubble UI reads this)"
+    },
+    {
+      "id": "rules.fired",
+      "kind": "value",
+      "value": [],
+      "description": "clauses that came into play for the last action"
+    },
+    {
+      "id": "rules.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "master verdict of the last pushed move"
+    },
+    {
+      "id": "board.r1c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A1: '' | B | W"
+    },
+    {
+      "id": "board.r1c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B1: '' | B | W"
+    },
+    {
+      "id": "board.r1c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C1: '' | B | W"
+    },
+    {
+      "id": "board.r1c4",
+      "kind": "value",
+      "value": "",
+      "description": "square D1: '' | B | W"
+    },
+    {
+      "id": "board.r1c5",
+      "kind": "value",
+      "value": "",
+      "description": "square E1: '' | B | W"
+    },
+    {
+      "id": "board.r1c6",
+      "kind": "value",
+      "value": "",
+      "description": "square F1: '' | B | W"
+    },
+    {
+      "id": "board.r1c7",
+      "kind": "value",
+      "value": "",
+      "description": "square G1: '' | B | W"
+    },
+    {
+      "id": "board.r2c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A2: '' | B | W"
+    },
+    {
+      "id": "board.r2c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B2: '' | B | W"
+    },
+    {
+      "id": "board.r2c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C2: '' | B | W"
+    },
+    {
+      "id": "board.r2c4",
+      "kind": "value",
+      "value": "",
+      "description": "square D2: '' | B | W"
+    },
+    {
+      "id": "board.r2c5",
+      "kind": "value",
+      "value": "",
+      "description": "square E2: '' | B | W"
+    },
+    {
+      "id": "board.r2c6",
+      "kind": "value",
+      "value": "",
+      "description": "square F2: '' | B | W"
+    },
+    {
+      "id": "board.r2c7",
+      "kind": "value",
+      "value": "",
+      "description": "square G2: '' | B | W"
+    },
+    {
+      "id": "board.r3c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A3: '' | B | W"
+    },
+    {
+      "id": "board.r3c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B3: '' | B | W"
+    },
+    {
+      "id": "board.r3c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C3: '' | B | W"
+    },
+    {
+      "id": "board.r3c4",
+      "kind": "value",
+      "value": "",
+      "description": "square D3: '' | B | W"
+    },
+    {
+      "id": "board.r3c5",
+      "kind": "value",
+      "value": "",
+      "description": "square E3: '' | B | W"
+    },
+    {
+      "id": "board.r3c6",
+      "kind": "value",
+      "value": "",
+      "description": "square F3: '' | B | W"
+    },
+    {
+      "id": "board.r3c7",
+      "kind": "value",
+      "value": "",
+      "description": "square G3: '' | B | W"
+    },
+    {
+      "id": "board.r4c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A4: '' | B | W"
+    },
+    {
+      "id": "board.r4c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B4: '' | B | W"
+    },
+    {
+      "id": "board.r4c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C4: '' | B | W"
+    },
+    {
+      "id": "board.r4c4",
+      "kind": "value",
+      "value": "",
+      "description": "square D4: '' | B | W"
+    },
+    {
+      "id": "board.r4c5",
+      "kind": "value",
+      "value": "",
+      "description": "square E4: '' | B | W"
+    },
+    {
+      "id": "board.r4c6",
+      "kind": "value",
+      "value": "",
+      "description": "square F4: '' | B | W"
+    },
+    {
+      "id": "board.r4c7",
+      "kind": "value",
+      "value": "",
+      "description": "square G4: '' | B | W"
+    },
+    {
+      "id": "board.r5c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A5: '' | B | W"
+    },
+    {
+      "id": "board.r5c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B5: '' | B | W"
+    },
+    {
+      "id": "board.r5c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C5: '' | B | W"
+    },
+    {
+      "id": "board.r5c4",
+      "kind": "value",
+      "value": "",
+      "description": "square D5: '' | B | W"
+    },
+    {
+      "id": "board.r5c5",
+      "kind": "value",
+      "value": "",
+      "description": "square E5: '' | B | W"
+    },
+    {
+      "id": "board.r5c6",
+      "kind": "value",
+      "value": "",
+      "description": "square F5: '' | B | W"
+    },
+    {
+      "id": "board.r5c7",
+      "kind": "value",
+      "value": "",
+      "description": "square G5: '' | B | W"
+    },
+    {
+      "id": "board.r6c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A6: '' | B | W"
+    },
+    {
+      "id": "board.r6c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B6: '' | B | W"
+    },
+    {
+      "id": "board.r6c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C6: '' | B | W"
+    },
+    {
+      "id": "board.r6c4",
+      "kind": "value",
+      "value": "",
+      "description": "square D6: '' | B | W"
+    },
+    {
+      "id": "board.r6c5",
+      "kind": "value",
+      "value": "",
+      "description": "square E6: '' | B | W"
+    },
+    {
+      "id": "board.r6c6",
+      "kind": "value",
+      "value": "",
+      "description": "square F6: '' | B | W"
+    },
+    {
+      "id": "board.r6c7",
+      "kind": "value",
+      "value": "",
+      "description": "square G6: '' | B | W"
+    },
+    {
+      "id": "board.grid",
+      "kind": "value",
+      "value": [
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ]
+      ],
+      "description": "mirror of the 42 board cells"
+    },
+    {
+      "id": "flip.trace",
+      "kind": "value",
+      "value": [],
+      "description": "the drop trace of the last accepted move (animation reads this)"
+    },
+    {
+      "id": "turn.current",
+      "kind": "value",
+      "value": "B",
+      "description": "B | W"
+    },
+    {
+      "id": "phase.current",
+      "kind": "value",
+      "value": "play",
+      "description": "play | over"
+    },
+    {
+      "id": "winner.current",
+      "kind": "value",
+      "value": null,
+      "description": "B | W | draw | null"
+    },
+    {
+      "id": "winner.line",
+      "kind": "value",
+      "value": null,
+      "description": "winning squares (R4) for highlighting"
+    },
+    {
+      "id": "match.seq",
+      "kind": "value",
+      "value": 0,
+      "description": "monotonic request sequence"
+    },
+    {
+      "id": "score.b",
+      "kind": "formula",
+      "expr": "board.grid.flat().filter(x => x === 'B').length",
+      "description": "BLACK discs on the board"
+    },
+    {
+      "id": "score.w",
+      "kind": "formula",
+      "expr": "board.grid.flat().filter(x => x === 'W').length",
+      "description": "WHITE discs on the board"
+    },
+    {
+      "id": "rule.R1.check",
+      "kind": "program",
+      "code": "\n\nconst COLS = 'ABCDEFG';\nconst ROWS = 6, NCOLS = 7;\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst AXES = [[0,1],[1,0],[1,1],[1,-1]];\n// R3 port: the lowest empty row of a column (-1 = full)\nconst dropRow = (grid, c) => { for (let r = ROWS - 1; r >= 0; r--) if (grid[r][c] === '') return r; return -1; };\n// R4 port: the contiguous own run through (r,c) if it reaches 4 — returns the squares\nconst winLine = (grid, r, c, p) => {\n  for (const d of AXES) {\n    const cells = [[r, c]];\n    for (const s of [1, -1]) {\n      let rr = r + s * d[0], cc = c + s * d[1];\n      while (rr >= 0 && rr < ROWS && cc >= 0 && cc < NCOLS && grid[rr][cc] === p) { cells.push([rr, cc]); rr += s * d[0]; cc += s * d[1]; }\n    }\n    if (cells.length >= 4)\n      return cells.map(([a, b]) => ({ r: a, c: b, sq: sq(a, b) }))\n        .sort((x, y) => (x.r - y.r) || (x.c - y.c));\n  }\n  return null;\n};\n// every 4-window through (r,c): [own, enemy, empty] counts after a sim drop\nconst windowsThrough = (grid, r, c, p) => {\n  const out = [];\n  for (const d of AXES) for (let s = -3; s <= 0; s++) {\n    const w = [];\n    for (let i = 0; i < 4; i++) {\n      const rr = r + (s + i) * d[0], cc = c + (s + i) * d[1];\n      if (rr < 0 || rr >= ROWS || cc < 0 || cc >= NCOLS) { w.push('X'); continue; }\n      w.push(grid[rr][cc]);\n    }\n    if (!w.includes('X')) out.push(w);\n  }\n  return out;\n};\nconst c = input?.c;\nconst fired = !(Number.isInteger(c) && c >= 0 && c < NCOLS);\nreturn { fired, why: fired\n  ? 'Column ' + JSON.stringify(input?.c) + ' does not exist — play names a column A-G.'\n  : 'Column ' + COLS[c] + ' exists and accepts a disc.' };",
+      "description": "R1 port: column exists",
+      "deps": []
+    },
+    {
+      "id": "rule.R2.check",
+      "kind": "program",
+      "code": "\n\nconst COLS = 'ABCDEFG';\nconst ROWS = 6, NCOLS = 7;\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst AXES = [[0,1],[1,0],[1,1],[1,-1]];\n// R3 port: the lowest empty row of a column (-1 = full)\nconst dropRow = (grid, c) => { for (let r = ROWS - 1; r >= 0; r--) if (grid[r][c] === '') return r; return -1; };\n// R4 port: the contiguous own run through (r,c) if it reaches 4 — returns the squares\nconst winLine = (grid, r, c, p) => {\n  for (const d of AXES) {\n    const cells = [[r, c]];\n    for (const s of [1, -1]) {\n      let rr = r + s * d[0], cc = c + s * d[1];\n      while (rr >= 0 && rr < ROWS && cc >= 0 && cc < NCOLS && grid[rr][cc] === p) { cells.push([rr, cc]); rr += s * d[0]; cc += s * d[1]; }\n    }\n    if (cells.length >= 4)\n      return cells.map(([a, b]) => ({ r: a, c: b, sq: sq(a, b) }))\n        .sort((x, y) => (x.r - y.r) || (x.c - y.c));\n  }\n  return null;\n};\n// every 4-window through (r,c): [own, enemy, empty] counts after a sim drop\nconst windowsThrough = (grid, r, c, p) => {\n  const out = [];\n  for (const d of AXES) for (let s = -3; s <= 0; s++) {\n    const w = [];\n    for (let i = 0; i < 4; i++) {\n      const rr = r + (s + i) * d[0], cc = c + (s + i) * d[1];\n      if (rr < 0 || rr >= ROWS || cc < 0 || cc >= NCOLS) { w.push('X'); continue; }\n      w.push(grid[rr][cc]);\n    }\n    if (!w.includes('X')) out.push(w);\n  }\n  return out;\n};\nconst c = input?.c, grid = input?.grid;\nconst row = dropRow(grid, c);\nconst fired = row === -1;\nreturn { fired, row, why: fired\n  ? 'Column ' + COLS[c] + ' is FULL (6 discs) — it accepts no further disc.'\n  : 'Column ' + COLS[c] + ' has room; the disc lands at ' + sq(row, c) + '.' };",
+      "description": "R2 port: column not full",
+      "deps": []
+    },
+    {
+      "id": "rule.R3.check",
+      "kind": "program",
+      "code": "\n\nconst COLS = 'ABCDEFG';\nconst ROWS = 6, NCOLS = 7;\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst AXES = [[0,1],[1,0],[1,1],[1,-1]];\n// R3 port: the lowest empty row of a column (-1 = full)\nconst dropRow = (grid, c) => { for (let r = ROWS - 1; r >= 0; r--) if (grid[r][c] === '') return r; return -1; };\n// R4 port: the contiguous own run through (r,c) if it reaches 4 — returns the squares\nconst winLine = (grid, r, c, p) => {\n  for (const d of AXES) {\n    const cells = [[r, c]];\n    for (const s of [1, -1]) {\n      let rr = r + s * d[0], cc = c + s * d[1];\n      while (rr >= 0 && rr < ROWS && cc >= 0 && cc < NCOLS && grid[rr][cc] === p) { cells.push([rr, cc]); rr += s * d[0]; cc += s * d[1]; }\n    }\n    if (cells.length >= 4)\n      return cells.map(([a, b]) => ({ r: a, c: b, sq: sq(a, b) }))\n        .sort((x, y) => (x.r - y.r) || (x.c - y.c));\n  }\n  return null;\n};\n// every 4-window through (r,c): [own, enemy, empty] counts after a sim drop\nconst windowsThrough = (grid, r, c, p) => {\n  const out = [];\n  for (const d of AXES) for (let s = -3; s <= 0; s++) {\n    const w = [];\n    for (let i = 0; i < 4; i++) {\n      const rr = r + (s + i) * d[0], cc = c + (s + i) * d[1];\n      if (rr < 0 || rr >= ROWS || cc < 0 || cc >= NCOLS) { w.push('X'); continue; }\n      w.push(grid[rr][cc]);\n    }\n    if (!w.includes('X')) out.push(w);\n  }\n  return out;\n};\n// gravity is not a prohibition but the EFFECT of acceptance — this checker\n// names the landing square the arbiter must use.\nconst c = input?.c, grid = input?.grid;\nconst row = dropRow(grid, c);\nreturn { fired: true, row,\n  why: row >= 0 ? 'The disc falls to ' + sq(row, c) + ' (lowest empty square of column ' + COLS[c] + ').'\n                : 'No landing square — the column is full.' };",
+      "description": "R3 port: gravity names the landing square",
+      "deps": []
+    },
+    {
+      "id": "rule.R4.check",
+      "kind": "program",
+      "code": "\n\nconst COLS = 'ABCDEFG';\nconst ROWS = 6, NCOLS = 7;\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst AXES = [[0,1],[1,0],[1,1],[1,-1]];\n// R3 port: the lowest empty row of a column (-1 = full)\nconst dropRow = (grid, c) => { for (let r = ROWS - 1; r >= 0; r--) if (grid[r][c] === '') return r; return -1; };\n// R4 port: the contiguous own run through (r,c) if it reaches 4 — returns the squares\nconst winLine = (grid, r, c, p) => {\n  for (const d of AXES) {\n    const cells = [[r, c]];\n    for (const s of [1, -1]) {\n      let rr = r + s * d[0], cc = c + s * d[1];\n      while (rr >= 0 && rr < ROWS && cc >= 0 && cc < NCOLS && grid[rr][cc] === p) { cells.push([rr, cc]); rr += s * d[0]; cc += s * d[1]; }\n    }\n    if (cells.length >= 4)\n      return cells.map(([a, b]) => ({ r: a, c: b, sq: sq(a, b) }))\n        .sort((x, y) => (x.r - y.r) || (x.c - y.c));\n  }\n  return null;\n};\n// every 4-window through (r,c): [own, enemy, empty] counts after a sim drop\nconst windowsThrough = (grid, r, c, p) => {\n  const out = [];\n  for (const d of AXES) for (let s = -3; s <= 0; s++) {\n    const w = [];\n    for (let i = 0; i < 4; i++) {\n      const rr = r + (s + i) * d[0], cc = c + (s + i) * d[1];\n      if (rr < 0 || rr >= ROWS || cc < 0 || cc >= NCOLS) { w.push('X'); continue; }\n      w.push(grid[rr][cc]);\n    }\n    if (!w.includes('X')) out.push(w);\n  }\n  return out;\n};\nconst grid = input?.grid, r = input?.r, c = input?.c, player = input?.player;\nconst line = winLine(grid, r, c, player);\nif (!line) return { fired: false, line: null, why: 'No four-in-line through ' + sq(r, c) + ' yet.' };\nreturn { fired: true, line: line.map(x => x.sq),\n  why: (player === 'B' ? 'BLACK' : 'WHITE') + ' owns four in a line: ' + line.map(x => x.sq).join(' - ') + '. Game over.' };",
+      "description": "R4 port: connect-four line through the landing square",
+      "deps": []
+    },
+    {
+      "id": "rule.R5.check",
+      "kind": "program",
+      "code": "\n\nconst COLS = 'ABCDEFG';\nconst ROWS = 6, NCOLS = 7;\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst AXES = [[0,1],[1,0],[1,1],[1,-1]];\n// R3 port: the lowest empty row of a column (-1 = full)\nconst dropRow = (grid, c) => { for (let r = ROWS - 1; r >= 0; r--) if (grid[r][c] === '') return r; return -1; };\n// R4 port: the contiguous own run through (r,c) if it reaches 4 — returns the squares\nconst winLine = (grid, r, c, p) => {\n  for (const d of AXES) {\n    const cells = [[r, c]];\n    for (const s of [1, -1]) {\n      let rr = r + s * d[0], cc = c + s * d[1];\n      while (rr >= 0 && rr < ROWS && cc >= 0 && cc < NCOLS && grid[rr][cc] === p) { cells.push([rr, cc]); rr += s * d[0]; cc += s * d[1]; }\n    }\n    if (cells.length >= 4)\n      return cells.map(([a, b]) => ({ r: a, c: b, sq: sq(a, b) }))\n        .sort((x, y) => (x.r - y.r) || (x.c - y.c));\n  }\n  return null;\n};\n// every 4-window through (r,c): [own, enemy, empty] counts after a sim drop\nconst windowsThrough = (grid, r, c, p) => {\n  const out = [];\n  for (const d of AXES) for (let s = -3; s <= 0; s++) {\n    const w = [];\n    for (let i = 0; i < 4; i++) {\n      const rr = r + (s + i) * d[0], cc = c + (s + i) * d[1];\n      if (rr < 0 || rr >= ROWS || cc < 0 || cc >= NCOLS) { w.push('X'); continue; }\n      w.push(grid[rr][cc]);\n    }\n    if (!w.includes('X')) out.push(w);\n  }\n  return out;\n};\nconst grid = input?.grid;\nlet n = 0;\nfor (const row of grid) for (const x of row) if (x !== '') n++;\nconst fired = n === ROWS * NCOLS;\nreturn { fired, n,\n  why: fired ? 'All 42 squares hold discs and no line was completed — the game is a draw.'\n             : 'Board holds ' + n + '/42 discs.' };",
+      "description": "R5 port: full board draw",
+      "deps": []
+    },
+    {
+      "id": "rule.R6.check",
+      "kind": "program",
+      "code": "\n\nconst COLS = 'ABCDEFG';\nconst ROWS = 6, NCOLS = 7;\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst AXES = [[0,1],[1,0],[1,1],[1,-1]];\n// R3 port: the lowest empty row of a column (-1 = full)\nconst dropRow = (grid, c) => { for (let r = ROWS - 1; r >= 0; r--) if (grid[r][c] === '') return r; return -1; };\n// R4 port: the contiguous own run through (r,c) if it reaches 4 — returns the squares\nconst winLine = (grid, r, c, p) => {\n  for (const d of AXES) {\n    const cells = [[r, c]];\n    for (const s of [1, -1]) {\n      let rr = r + s * d[0], cc = c + s * d[1];\n      while (rr >= 0 && rr < ROWS && cc >= 0 && cc < NCOLS && grid[rr][cc] === p) { cells.push([rr, cc]); rr += s * d[0]; cc += s * d[1]; }\n    }\n    if (cells.length >= 4)\n      return cells.map(([a, b]) => ({ r: a, c: b, sq: sq(a, b) }))\n        .sort((x, y) => (x.r - y.r) || (x.c - y.c));\n  }\n  return null;\n};\n// every 4-window through (r,c): [own, enemy, empty] counts after a sim drop\nconst windowsThrough = (grid, r, c, p) => {\n  const out = [];\n  for (const d of AXES) for (let s = -3; s <= 0; s++) {\n    const w = [];\n    for (let i = 0; i < 4; i++) {\n      const rr = r + (s + i) * d[0], cc = c + (s + i) * d[1];\n      if (rr < 0 || rr >= ROWS || cc < 0 || cc >= NCOLS) { w.push('X'); continue; }\n      w.push(grid[rr][cc]);\n    }\n    if (!w.includes('X')) out.push(w);\n  }\n  return out;\n};\n// ADVISORY: scan all columns for immediate wins for either side.\nconst grid = input?.grid, mover = input?.player;\nconst winNow = [], mustBlock = [];\nfor (let c = 0; c < NCOLS; c++) {\n  const row = dropRow(grid, c);\n  if (row < 0) continue;\n  const g2 = grid.map(x => x.slice());\n  g2[row][c] = mover;\n  if (winLine(g2, row, c, mover)) winNow.push(COLS[c]);\n  const g3 = grid.map(x => x.slice());\n  g3[row][c] = opp(mover);\n  if (winLine(g3, row, c, opp(mover))) mustBlock.push(COLS[c]);\n}\nconst parts = [];\nif (winNow.length) parts.push('WIN NOW at column ' + winNow.join(',') + ' — take it.');\nif (mustBlock.length) parts.push('MUST BLOCK column ' + mustBlock.join(',') + ' — the opponent wins there next turn.');\nreturn { fired: parts.length > 0, winNow, mustBlock,\n  why: parts.length ? parts.join(' ') : 'No immediate threats on the board.' };",
+      "description": "R6 port: WIN NOW / MUST BLOCK advisory scan",
+      "deps": []
+    },
+    {
+      "id": "move.arbiter",
+      "kind": "program",
+      "code": "\n// THE REFEREE — sequences rule cells, applies gravity, keeps the ledger.\n\nconst COLS = 'ABCDEFG';\nconst ROWS = 6, NCOLS = 7;\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst AXES = [[0,1],[1,0],[1,1],[1,-1]];\n// R3 port: the lowest empty row of a column (-1 = full)\nconst dropRow = (grid, c) => { for (let r = ROWS - 1; r >= 0; r--) if (grid[r][c] === '') return r; return -1; };\n// R4 port: the contiguous own run through (r,c) if it reaches 4 — returns the squares\nconst winLine = (grid, r, c, p) => {\n  for (const d of AXES) {\n    const cells = [[r, c]];\n    for (const s of [1, -1]) {\n      let rr = r + s * d[0], cc = c + s * d[1];\n      while (rr >= 0 && rr < ROWS && cc >= 0 && cc < NCOLS && grid[rr][cc] === p) { cells.push([rr, cc]); rr += s * d[0]; cc += s * d[1]; }\n    }\n    if (cells.length >= 4)\n      return cells.map(([a, b]) => ({ r: a, c: b, sq: sq(a, b) }))\n        .sort((x, y) => (x.r - y.r) || (x.c - y.c));\n  }\n  return null;\n};\n// every 4-window through (r,c): [own, enemy, empty] counts after a sim drop\nconst windowsThrough = (grid, r, c, p) => {\n  const out = [];\n  for (const d of AXES) for (let s = -3; s <= 0; s++) {\n    const w = [];\n    for (let i = 0; i < 4; i++) {\n      const rr = r + (s + i) * d[0], cc = c + (s + i) * d[1];\n      if (rr < 0 || rr >= ROWS || cc < 0 || cc >= NCOLS) { w.push('X'); continue; }\n      w.push(grid[rr][cc]);\n    }\n    if (!w.includes('X')) out.push(w);\n  }\n  return out;\n};\nconst seq = input?.seq ?? 0;\nconst c = input?.c, player = input?.player;\nconst last = (await runtime.get('match.seq')).data;\nif (seq <= last) return { ok: false, rule: 'DUP', text: 'stale request (seq ' + seq + ' <= ' + last + ') — nothing happened.' };\nconst done = async (verdict) => {\n  const log = (await runtime.get('log.events')).data;\n  await runtime.set('log.events', [...log.slice(-199), {\n    ts: Date.now(), kind: verdict.ok ? 'apply' : 'refuse', rule: verdict.rule ?? null, seq, text: verdict.text }]);\n  await runtime.set('rules.verdict', { ...verdict, seq, ts: Date.now() });\n  return verdict;\n};\nlet grid = (await runtime.get('board.grid')).data.map(row => row.slice());\nconst phase = (await runtime.get('phase.current')).data;\nconst fired = [];\n\nif (phase !== 'play') {\n  const r5 = (await runtime.call('rule.R5.check', { grid, seq })).data;\n  await runtime.set('rule.R5.verdict', { ...r5, ts: Date.now() });\n  await runtime.set('rules.fired', ['R5']);\n  return done({ ok: false, rule: 'R5', text: 'Move refused — ' + r5.why });\n}\n\nconst r1 = (await runtime.call('rule.R1.check', { c, seq })).data;\nawait runtime.set('rule.R1.verdict', { ...r1, ts: Date.now() });\nfired.push('R1');\nif (r1.fired) { await runtime.set('rules.fired', fired); return done({ ok: false, rule: 'R1', text: r1.why }); }\n\nconst r2 = (await runtime.call('rule.R2.check', { c, grid, seq })).data;\nawait runtime.set('rule.R2.verdict', { ...r2, ts: Date.now() });\nfired.push('R2');\nif (r2.fired) { await runtime.set('rules.fired', fired); return done({ ok: false, rule: 'R2', text: r2.why }); }\n\n// ACCEPTED — R3 gravity names the landing square; the arbiter applies it.\nconst r3 = (await runtime.call('rule.R3.check', { c, grid, seq })).data;\nawait runtime.set('rule.R3.verdict', { ...r3, ts: Date.now() });\nfired.push('R3');\nconst row = r3.row;\nconst trace = [{ sq: sq(row, c), from: '', to: player, ray: 'drop', r: row, c }];\nawait runtime.set('board.r' + (row + 1) + 'c' + (c + 1), player);\ngrid[row][c] = player;\nawait runtime.set('board.grid', grid);\nawait runtime.set('flip.trace', trace);\n\n// R4 connect-four\nconst r4 = (await runtime.call('rule.R4.check', { grid, r: row, c, player, seq })).data;\nawait runtime.set('rule.R4.verdict', { ...r4, ts: Date.now() });\nif (r4.fired) {\n  fired.push('R4');\n  await runtime.set('rules.fired', fired);\n  await runtime.set('phase.current', 'over');\n  await runtime.set('winner.current', player);\n  await runtime.set('winner.line', r4.line);\n  await runtime.set('match.seq', seq);\n  return done({ ok: true, rule: 'R4', text: r4.why, fired, trace, line: r4.line });\n}\n\n// R5 draw\nconst r5 = (await runtime.call('rule.R5.check', { grid, seq })).data;\nawait runtime.set('rule.R5.verdict', { ...r5, ts: Date.now() });\nif (r5.fired) {\n  fired.push('R5');\n  await runtime.set('rules.fired', fired);\n  await runtime.set('phase.current', 'over');\n  await runtime.set('winner.current', 'draw');\n  await runtime.set('match.seq', seq);\n  return done({ ok: true, rule: 'R5', text: r5.why, fired, trace });\n}\n\n// R6 advisory threat scan (for the bubble, never blocking)\nconst r6 = (await runtime.call('rule.R6.check', { grid, player: opp(player), seq })).data;\nawait runtime.set('rule.R6.verdict', { ...r6, ts: Date.now() });\nif (r6.fired) fired.push('R6');\n\n// TURN alternates strictly\nawait runtime.set('turn.current', opp(player));\nawait runtime.set('match.seq', seq);\nawait runtime.set('rules.fired', fired);\nconst tail = r6.fired ? ' ' + r6.why : '';\nreturn done({ ok: true, rule: 'R3', text: (player === 'B' ? 'BLACK' : 'WHITE') + ' drops ' + COLS[c] + ' -> ' + sq(row, c) + '.' + tail, fired, trace });",
+      "description": "THE REFEREE — sequences rule cells, applies gravity, keeps the ledger",
+      "deps": [
+        "move.request"
+      ]
+    },
+    {
+      "id": "move.dispatch",
+      "kind": "program",
+      "code": "\nconst ev = input ?? {};\nlet req = null;\nif (ev.c != null && ev.r == null) req = ev;\nelse if (ev.value?.c != null) req = ev.value;\nelse if (caller?.metadata?.current?.c != null) req = caller.metadata.current;\nelse req = (await runtime.get('move.request')).data;\nif (!req || req.c == null) return { skipped: true };\nreturn (await runtime.call('move.arbiter', req)).data;",
+      "description": "push trampoline: move.request -> move.arbiter",
+      "deps": [
+        "move.request"
+      ]
+    },
+    {
+      "id": "move.push",
+      "kind": "listener",
+      "watch": [
+        "move.request"
+      ],
+      "action": "move.dispatch",
+      "description": "push of one value drives the cascade"
+    },
+    {
+      "id": "move.request",
+      "kind": "value",
+      "value": null,
+      "description": "UI writes {c,player,seq} here — the entire input surface"
+    },
+    {
+      "id": "ai.weights",
+      "kind": "value",
+      "value": {
+        "win": 6,
+        "mine3": 0,
+        "theirs3": 0,
+        "center": 0.4,
+        "giveAway": 0
+      },
+      "description": "learner policy weights (theta) — updated by learn.update"
+    },
+    {
+      "id": "ai.fixed_weights",
+      "kind": "value",
+      "value": {
+        "win": 6,
+        "mine3": 0,
+        "theirs3": 0,
+        "center": 0.4,
+        "giveAway": 0
+      },
+      "description": "frozen baseline opponent weights (never learns — the control group)"
+    },
+    {
+      "id": "ai.move_log",
+      "kind": "value",
+      "value": [],
+      "description": "feature vectors of the learner's moves this game"
+    },
+    {
+      "id": "ai.features",
+      "kind": "program",
+      "code": "\n\nconst COLS = 'ABCDEFG';\nconst ROWS = 6, NCOLS = 7;\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst AXES = [[0,1],[1,0],[1,1],[1,-1]];\n// R3 port: the lowest empty row of a column (-1 = full)\nconst dropRow = (grid, c) => { for (let r = ROWS - 1; r >= 0; r--) if (grid[r][c] === '') return r; return -1; };\n// R4 port: the contiguous own run through (r,c) if it reaches 4 — returns the squares\nconst winLine = (grid, r, c, p) => {\n  for (const d of AXES) {\n    const cells = [[r, c]];\n    for (const s of [1, -1]) {\n      let rr = r + s * d[0], cc = c + s * d[1];\n      while (rr >= 0 && rr < ROWS && cc >= 0 && cc < NCOLS && grid[rr][cc] === p) { cells.push([rr, cc]); rr += s * d[0]; cc += s * d[1]; }\n    }\n    if (cells.length >= 4)\n      return cells.map(([a, b]) => ({ r: a, c: b, sq: sq(a, b) }))\n        .sort((x, y) => (x.r - y.r) || (x.c - y.c));\n  }\n  return null;\n};\n// every 4-window through (r,c): [own, enemy, empty] counts after a sim drop\nconst windowsThrough = (grid, r, c, p) => {\n  const out = [];\n  for (const d of AXES) for (let s = -3; s <= 0; s++) {\n    const w = [];\n    for (let i = 0; i < 4; i++) {\n      const rr = r + (s + i) * d[0], cc = c + (s + i) * d[1];\n      if (rr < 0 || rr >= ROWS || cc < 0 || cc >= NCOLS) { w.push('X'); continue; }\n      w.push(grid[rr][cc]);\n    }\n    if (!w.includes('X')) out.push(w);\n  }\n  return out;\n};\n// features of dropping in column c (scaled ~[-2, 2])\nconst grid = input?.grid, c = input?.c, player = input?.player;\nconst row = dropRow(grid, c);\nif (row < 0) return null;\nconst g2 = grid.map(x => x.slice());\ng2[row][c] = player;\nconst win = winLine(g2, row, c, player) ? 1 : 0;\nlet mine3 = 0, mine2 = 0;\nfor (const w of windowsThrough(g2, row, c, player)) {\n  const mine = w.filter(x => x === player).length, empty = w.filter(x => x === '').length;\n  if (mine === 3 && empty === 1) mine3++;\n  if (mine === 2 && empty === 2) mine2++;\n}\n// opponent threats that remain after my move (anywhere on the board, their turn next)\nlet theirs3 = 0;\nfor (let cc = 0; cc < NCOLS; cc++) {\n  const rr = dropRow(g2, cc);\n  if (rr < 0) continue;\n  const g3 = g2.map(x => x.slice());\n  g3[rr][cc] = opp(player);\n  if (winLine(g3, rr, cc, opp(player))) theirs3++;\n}\nconst giveAway = theirs3 > 0 ? 1 : 0;\nconst center = (3 - Math.abs(c - 3)) / 3;\nreturn { f: { win, mine3: mine3 / 2, theirs3: theirs3 / 2, center, giveAway }, row };",
+      "description": "features of a candidate column drop (pure)",
+      "deps": []
+    },
+    {
+      "id": "ai.choose",
+      "kind": "program",
+      "code": "\n\nconst COLS = 'ABCDEFG';\nconst ROWS = 6, NCOLS = 7;\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst AXES = [[0,1],[1,0],[1,1],[1,-1]];\n// R3 port: the lowest empty row of a column (-1 = full)\nconst dropRow = (grid, c) => { for (let r = ROWS - 1; r >= 0; r--) if (grid[r][c] === '') return r; return -1; };\n// R4 port: the contiguous own run through (r,c) if it reaches 4 — returns the squares\nconst winLine = (grid, r, c, p) => {\n  for (const d of AXES) {\n    const cells = [[r, c]];\n    for (const s of [1, -1]) {\n      let rr = r + s * d[0], cc = c + s * d[1];\n      while (rr >= 0 && rr < ROWS && cc >= 0 && cc < NCOLS && grid[rr][cc] === p) { cells.push([rr, cc]); rr += s * d[0]; cc += s * d[1]; }\n    }\n    if (cells.length >= 4)\n      return cells.map(([a, b]) => ({ r: a, c: b, sq: sq(a, b) }))\n        .sort((x, y) => (x.r - y.r) || (x.c - y.c));\n  }\n  return null;\n};\n// every 4-window through (r,c): [own, enemy, empty] counts after a sim drop\nconst windowsThrough = (grid, r, c, p) => {\n  const out = [];\n  for (const d of AXES) for (let s = -3; s <= 0; s++) {\n    const w = [];\n    for (let i = 0; i < 4; i++) {\n      const rr = r + (s + i) * d[0], cc = c + (s + i) * d[1];\n      if (rr < 0 || rr >= ROWS || cc < 0 || cc >= NCOLS) { w.push('X'); continue; }\n      w.push(grid[rr][cc]);\n    }\n    if (!w.includes('X')) out.push(w);\n  }\n  return out;\n};\n\n    const rng = (seed) => { let a = (seed ?? 1) >>> 0;\n      return () => { a |= 0; a = (a + 0x6D2B79F5) | 0;\n        let t = Math.imul(a ^ (a >>> 15), 1 | a);\n        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;\n        return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };\nconst grid = (await runtime.get('board.grid')).data;\nconst player = input?.player ?? (await runtime.get('turn.current')).data;\nconst weights = input?.weights ?? (await runtime.get('ai.weights')).data;\nconst seed = input?.seed ?? 1;\nconst phase = (await runtime.get('phase.current')).data;\nif (phase !== 'play') return null;\nconst scored = [];\nfor (let c = 0; c < NCOLS; c++) {\n  const out = (await runtime.call('ai.features', { grid, c, player, seq: seed + ':' + c })).data;\n  if (!out) continue;\n  let s = 0; for (const k of Object.keys(weights)) s += (weights[k] ?? 0) * (out.f[k] ?? 0);\n  scored.push({ c, col: COLS[c], score: Math.round(s * 1000) / 1000, f: out.f, row: out.row });\n}\nif (!scored.length) return { pass: true, player };\nscored.sort((a, b) => b.score - a.score);\nconst rnd = rng(seed * 7919 + r2s(grid));\nconst top = scored.slice(0, Math.min(3, scored.length));\nconst pick = rnd() < 0.85 ? top[0] : top[Math.floor(rnd() * top.length)];\nreturn { ...pick, player, considered: scored.length,\n  why: player + ' drops ' + pick.col + ' (score ' + pick.score + ')' };\nfunction r2s(g) { let h = 0; for (const row of g) for (const x of row) h = (h * 31 + (x === 'B' ? 1 : x === 'W' ? 2 : 0)) | 0; return h >>> 0; }",
+      "description": "score columns by dot(theta, features); seeded tie-break",
+      "deps": [
+        "board.grid",
+        "turn.current",
+        "phase.current",
+        "ai.weights"
+      ]
+    },
+    {
+      "id": "learn.alpha",
+      "kind": "value",
+      "value": 0.1,
+      "description": "perceptron learning rate"
+    },
+    {
+      "id": "learn.gen",
+      "kind": "value",
+      "value": 0,
+      "description": "generations learned so far"
+    },
+    {
+      "id": "learn.receipts",
+      "kind": "value",
+      "value": [],
+      "description": "fnv1a64 hash-chained witness receipts: one per game"
+    },
+    {
+      "id": "learn.last",
+      "kind": "value",
+      "value": null,
+      "description": "snapshot of the latest update"
+    },
+    {
+      "id": "learn.update",
+      "kind": "program",
+      "code": "\n\n    const fnv1a64 = (s) => { let h = 0xcbf29ce484222325n;\n      const p = 0x100000001b3n, m = 0xffffffffffffffffn;\n      for (let i = 0; i < s.length; i++) { h ^= BigInt(s.charCodeAt(i)); h = (h * p) & m; }\n      return h.toString(16).padStart(16, '0'); };\n    const canon = (row) => { const s = {}; for (const k of Object.keys(row).sort()) s[k] = row[k];\n      return JSON.stringify(s); };\n    const GENESIS_PREV = '0'.repeat(16);\n// learn.update input {side} — averaged perceptron + witness receipt.\nconst side = input?.side ?? 'B';\nconst winner = (await runtime.get('winner.current')).data;\nconst s = winner === 'draw' ? 0 : (winner === side ? 1 : -1);\nconst alpha = (await runtime.get('learn.alpha')).data;\nconst moves = (await runtime.get('ai.move_log')).data;\nconst theta = { ...(await runtime.get('ai.weights')).data };\nfor (const f of moves) for (const k of Object.keys(theta))\n  theta[k] = Math.max(-8, Math.min(8, theta[k] + alpha * s * (f[k] ?? 0)));\nconst gen = (await runtime.get('learn.gen')).data + 1;\nawait runtime.set('ai.weights', theta);\nawait runtime.set('learn.gen', gen);\nconst receipts = (await runtime.get('learn.receipts')).data;\nconst hist = receipts.filter(x => x.side === side).slice(0, 9);\nconst wins = (s > 0 ? 1 : 0) + hist.filter(x => x.result === 'W').length;\nconst rate = Math.round((100 * wins) / (hist.length + 1));\nconst prev = receipts.length ? receipts[receipts.length - 1].row_hash : GENESIS_PREV;\nconst fields = { seq: gen, side, result: s > 0 ? 'W' : s < 0 ? 'L' : 'D',\n  score_b: (await runtime.get('score.b')).data, score_w: (await runtime.get('score.w')).data,\n  theta_hash: fnv1a64(canon(theta)), win_rate10: rate };\nconst row = { ...fields, prev_hash: prev, row_hash: fnv1a64(canon({ ...fields, prev_hash: prev })) };\nawait runtime.set('learn.receipts', [...receipts, row]);\nawait runtime.set('ai.move_log', []);\nawait runtime.set('learn.last', { gen, theta, receipt: row });\nreturn { gen, theta, result: row.result, win_rate10: rate, receipt: row };",
+      "description": "perceptron update + witness receipt (call once per finished game)",
+      "deps": [
+        "winner.current",
+        "score.b",
+        "score.w",
+        "ai.move_log",
+        "ai.weights"
+      ]
+    },
+    {
+      "id": "match.step",
+      "kind": "program",
+      "code": "\n// one AI ply; input {weights?, seed?, log?}. match.seq is owned by the arbiter.\nconst phase = (await runtime.get('phase.current')).data;\nif (phase !== 'play') return { over: true };\nconst player = (await runtime.get('turn.current')).data;\nconst choice = (await runtime.call('ai.choose', { player, weights: input?.weights, seed: input?.seed ?? 1 })).data;\nif (!choice || choice.pass) return { pass: true, player };\nif (input?.log) {\n  const log = (await runtime.get('ai.move_log')).data;\n  await runtime.set('ai.move_log', [...log, choice.f]);\n}\nreturn (await runtime.call('move.arbiter', { c: choice.c, player, seq: (await runtime.get('match.seq')).data + 1 })).data;",
+      "description": "one AI ply (input {weights?, seed?, log?})",
+      "deps": [
+        "phase.current",
+        "turn.current",
+        "ai.weights"
+      ]
+    },
+    {
+      "id": "new_game",
+      "kind": "program",
+      "code": "\nfor (let r = 1; r <= 6; r++) for (let c = 1; c <= 7; c++)\n  await runtime.set('board.r' + r + 'c' + c, '');\nconst g = [];\nfor (let r = 0; r < 6; r++) { const row = []; for (let c = 0; c < 7; c++) row.push(''); g.push(row); }\nawait runtime.set('board.grid', g);\nawait runtime.set('turn.current', 'B');\nawait runtime.set('phase.current', 'play');\nawait runtime.set('winner.current', null);\nawait runtime.set('winner.line', null);\nawait runtime.set('flip.trace', []);\nfor (const n of ['R1','R2','R3','R4','R5','R6']) await runtime.set('rule.' + n + '.verdict', null);\nawait runtime.set('rules.fired', []);\nawait runtime.set('rules.verdict', null);\nawait runtime.set('match.seq', 0);\nawait runtime.set('move.request', null);\nawait runtime.set('ai.move_log', []);\nconst log = (await runtime.get('log.events')).data;\nawait runtime.set('log.events', [...log.slice(-199), { ts: Date.now(), kind: 'new_game', text: 'board reset — BLACK to move' }]);\nreturn { ok: true };",
+      "description": "reset the board, keep the learning ledger",
+      "deps": [
+        "board.grid"
+      ]
+    },
+    {
+      "id": "log.events",
+      "kind": "value",
+      "value": [],
+      "description": "append-only audit (cap 200)"
+    }
+  ]
+}

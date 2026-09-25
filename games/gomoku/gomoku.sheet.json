@@ -1,0 +1,916 @@
+{
+  "id": "gomoku",
+  "title": "Quilt Arcade — Gomoku (patterns + learning loop)",
+  "cells": [
+    {
+      "id": "rules.book",
+      "kind": "value",
+      "value": "GOMOKU (freestyle, 9x9) — RULEBOOK v1\n\nR1 (bounds)      A stone is placed by naming a square (rows 1-9, columns\n                 A-I). Squares outside the 9x9 grid do not exist; naming one\n                 is not a move.\n\nR2 (empty)       A stone may only be placed on an EMPTY square. Stones never\n                 move and are never captured.\n\nR3 (five)        If after placement a player owns FIVE OR MORE stones in an\n                 unbroken straight line — horizontal, vertical, or either\n                 diagonal — the player wins and the board is closed. The\n                 rule names the exact squares of the winning line.\n\nR4 (draw)        If all 81 squares hold stones and no line was completed,\n                 the game is a draw and the board is closed.\n\nR5 (threat)      ADVISORY: after every accepted placement the sheet reports\n                 the strongest shape still available on the board — an open\n                 four (unstoppable next turn), a simple four, or an open\n                 three — for the side to move to address.\n\nTURN (derived)   Black moves first; turns alternate strictly. Refused moves\n                 never consume the turn.",
+      "description": "the complete ruleset; every clause is ported 1:1 to a rule.N.check cell"
+    },
+    {
+      "id": "rule.R1.law",
+      "kind": "value",
+      "value": "R1 (bounds): squares outside the 9x9 grid do not exist.",
+      "description": "clause R1 quoted from rules.book"
+    },
+    {
+      "id": "rule.R1.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause R1 (bubble UI reads this)"
+    },
+    {
+      "id": "rule.R2.law",
+      "kind": "value",
+      "value": "R2 (empty): stones only on empty squares; never moved, never captured.",
+      "description": "clause R2 quoted from rules.book"
+    },
+    {
+      "id": "rule.R2.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause R2 (bubble UI reads this)"
+    },
+    {
+      "id": "rule.R3.law",
+      "kind": "value",
+      "value": "R3 (five): five or more own stones in an unbroken line win; the rule names the squares.",
+      "description": "clause R3 quoted from rules.book"
+    },
+    {
+      "id": "rule.R3.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause R3 (bubble UI reads this)"
+    },
+    {
+      "id": "rule.R4.law",
+      "kind": "value",
+      "value": "R4 (draw): 81 stones with no five is a draw; closed boards refuse everything.",
+      "description": "clause R4 quoted from rules.book"
+    },
+    {
+      "id": "rule.R4.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause R4 (bubble UI reads this)"
+    },
+    {
+      "id": "rule.R5.law",
+      "kind": "value",
+      "value": "R5 (threat): advisory scan — open fours, fours, open threes for the side to move.",
+      "description": "clause R5 quoted from rules.book"
+    },
+    {
+      "id": "rule.R5.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause R5 (bubble UI reads this)"
+    },
+    {
+      "id": "rules.fired",
+      "kind": "value",
+      "value": [],
+      "description": "clauses that came into play for the last action"
+    },
+    {
+      "id": "rules.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "master verdict of the last pushed move"
+    },
+    {
+      "id": "board.r1c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A1: '' | B | W"
+    },
+    {
+      "id": "board.r1c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B1: '' | B | W"
+    },
+    {
+      "id": "board.r1c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C1: '' | B | W"
+    },
+    {
+      "id": "board.r1c4",
+      "kind": "value",
+      "value": "",
+      "description": "square D1: '' | B | W"
+    },
+    {
+      "id": "board.r1c5",
+      "kind": "value",
+      "value": "",
+      "description": "square E1: '' | B | W"
+    },
+    {
+      "id": "board.r1c6",
+      "kind": "value",
+      "value": "",
+      "description": "square F1: '' | B | W"
+    },
+    {
+      "id": "board.r1c7",
+      "kind": "value",
+      "value": "",
+      "description": "square G1: '' | B | W"
+    },
+    {
+      "id": "board.r1c8",
+      "kind": "value",
+      "value": "",
+      "description": "square H1: '' | B | W"
+    },
+    {
+      "id": "board.r1c9",
+      "kind": "value",
+      "value": "",
+      "description": "square I1: '' | B | W"
+    },
+    {
+      "id": "board.r2c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A2: '' | B | W"
+    },
+    {
+      "id": "board.r2c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B2: '' | B | W"
+    },
+    {
+      "id": "board.r2c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C2: '' | B | W"
+    },
+    {
+      "id": "board.r2c4",
+      "kind": "value",
+      "value": "",
+      "description": "square D2: '' | B | W"
+    },
+    {
+      "id": "board.r2c5",
+      "kind": "value",
+      "value": "",
+      "description": "square E2: '' | B | W"
+    },
+    {
+      "id": "board.r2c6",
+      "kind": "value",
+      "value": "",
+      "description": "square F2: '' | B | W"
+    },
+    {
+      "id": "board.r2c7",
+      "kind": "value",
+      "value": "",
+      "description": "square G2: '' | B | W"
+    },
+    {
+      "id": "board.r2c8",
+      "kind": "value",
+      "value": "",
+      "description": "square H2: '' | B | W"
+    },
+    {
+      "id": "board.r2c9",
+      "kind": "value",
+      "value": "",
+      "description": "square I2: '' | B | W"
+    },
+    {
+      "id": "board.r3c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A3: '' | B | W"
+    },
+    {
+      "id": "board.r3c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B3: '' | B | W"
+    },
+    {
+      "id": "board.r3c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C3: '' | B | W"
+    },
+    {
+      "id": "board.r3c4",
+      "kind": "value",
+      "value": "",
+      "description": "square D3: '' | B | W"
+    },
+    {
+      "id": "board.r3c5",
+      "kind": "value",
+      "value": "",
+      "description": "square E3: '' | B | W"
+    },
+    {
+      "id": "board.r3c6",
+      "kind": "value",
+      "value": "",
+      "description": "square F3: '' | B | W"
+    },
+    {
+      "id": "board.r3c7",
+      "kind": "value",
+      "value": "",
+      "description": "square G3: '' | B | W"
+    },
+    {
+      "id": "board.r3c8",
+      "kind": "value",
+      "value": "",
+      "description": "square H3: '' | B | W"
+    },
+    {
+      "id": "board.r3c9",
+      "kind": "value",
+      "value": "",
+      "description": "square I3: '' | B | W"
+    },
+    {
+      "id": "board.r4c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A4: '' | B | W"
+    },
+    {
+      "id": "board.r4c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B4: '' | B | W"
+    },
+    {
+      "id": "board.r4c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C4: '' | B | W"
+    },
+    {
+      "id": "board.r4c4",
+      "kind": "value",
+      "value": "",
+      "description": "square D4: '' | B | W"
+    },
+    {
+      "id": "board.r4c5",
+      "kind": "value",
+      "value": "",
+      "description": "square E4: '' | B | W"
+    },
+    {
+      "id": "board.r4c6",
+      "kind": "value",
+      "value": "",
+      "description": "square F4: '' | B | W"
+    },
+    {
+      "id": "board.r4c7",
+      "kind": "value",
+      "value": "",
+      "description": "square G4: '' | B | W"
+    },
+    {
+      "id": "board.r4c8",
+      "kind": "value",
+      "value": "",
+      "description": "square H4: '' | B | W"
+    },
+    {
+      "id": "board.r4c9",
+      "kind": "value",
+      "value": "",
+      "description": "square I4: '' | B | W"
+    },
+    {
+      "id": "board.r5c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A5: '' | B | W"
+    },
+    {
+      "id": "board.r5c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B5: '' | B | W"
+    },
+    {
+      "id": "board.r5c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C5: '' | B | W"
+    },
+    {
+      "id": "board.r5c4",
+      "kind": "value",
+      "value": "",
+      "description": "square D5: '' | B | W"
+    },
+    {
+      "id": "board.r5c5",
+      "kind": "value",
+      "value": "",
+      "description": "square E5: '' | B | W"
+    },
+    {
+      "id": "board.r5c6",
+      "kind": "value",
+      "value": "",
+      "description": "square F5: '' | B | W"
+    },
+    {
+      "id": "board.r5c7",
+      "kind": "value",
+      "value": "",
+      "description": "square G5: '' | B | W"
+    },
+    {
+      "id": "board.r5c8",
+      "kind": "value",
+      "value": "",
+      "description": "square H5: '' | B | W"
+    },
+    {
+      "id": "board.r5c9",
+      "kind": "value",
+      "value": "",
+      "description": "square I5: '' | B | W"
+    },
+    {
+      "id": "board.r6c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A6: '' | B | W"
+    },
+    {
+      "id": "board.r6c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B6: '' | B | W"
+    },
+    {
+      "id": "board.r6c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C6: '' | B | W"
+    },
+    {
+      "id": "board.r6c4",
+      "kind": "value",
+      "value": "",
+      "description": "square D6: '' | B | W"
+    },
+    {
+      "id": "board.r6c5",
+      "kind": "value",
+      "value": "",
+      "description": "square E6: '' | B | W"
+    },
+    {
+      "id": "board.r6c6",
+      "kind": "value",
+      "value": "",
+      "description": "square F6: '' | B | W"
+    },
+    {
+      "id": "board.r6c7",
+      "kind": "value",
+      "value": "",
+      "description": "square G6: '' | B | W"
+    },
+    {
+      "id": "board.r6c8",
+      "kind": "value",
+      "value": "",
+      "description": "square H6: '' | B | W"
+    },
+    {
+      "id": "board.r6c9",
+      "kind": "value",
+      "value": "",
+      "description": "square I6: '' | B | W"
+    },
+    {
+      "id": "board.r7c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A7: '' | B | W"
+    },
+    {
+      "id": "board.r7c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B7: '' | B | W"
+    },
+    {
+      "id": "board.r7c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C7: '' | B | W"
+    },
+    {
+      "id": "board.r7c4",
+      "kind": "value",
+      "value": "",
+      "description": "square D7: '' | B | W"
+    },
+    {
+      "id": "board.r7c5",
+      "kind": "value",
+      "value": "",
+      "description": "square E7: '' | B | W"
+    },
+    {
+      "id": "board.r7c6",
+      "kind": "value",
+      "value": "",
+      "description": "square F7: '' | B | W"
+    },
+    {
+      "id": "board.r7c7",
+      "kind": "value",
+      "value": "",
+      "description": "square G7: '' | B | W"
+    },
+    {
+      "id": "board.r7c8",
+      "kind": "value",
+      "value": "",
+      "description": "square H7: '' | B | W"
+    },
+    {
+      "id": "board.r7c9",
+      "kind": "value",
+      "value": "",
+      "description": "square I7: '' | B | W"
+    },
+    {
+      "id": "board.r8c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A8: '' | B | W"
+    },
+    {
+      "id": "board.r8c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B8: '' | B | W"
+    },
+    {
+      "id": "board.r8c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C8: '' | B | W"
+    },
+    {
+      "id": "board.r8c4",
+      "kind": "value",
+      "value": "",
+      "description": "square D8: '' | B | W"
+    },
+    {
+      "id": "board.r8c5",
+      "kind": "value",
+      "value": "",
+      "description": "square E8: '' | B | W"
+    },
+    {
+      "id": "board.r8c6",
+      "kind": "value",
+      "value": "",
+      "description": "square F8: '' | B | W"
+    },
+    {
+      "id": "board.r8c7",
+      "kind": "value",
+      "value": "",
+      "description": "square G8: '' | B | W"
+    },
+    {
+      "id": "board.r8c8",
+      "kind": "value",
+      "value": "",
+      "description": "square H8: '' | B | W"
+    },
+    {
+      "id": "board.r8c9",
+      "kind": "value",
+      "value": "",
+      "description": "square I8: '' | B | W"
+    },
+    {
+      "id": "board.r9c1",
+      "kind": "value",
+      "value": "",
+      "description": "square A9: '' | B | W"
+    },
+    {
+      "id": "board.r9c2",
+      "kind": "value",
+      "value": "",
+      "description": "square B9: '' | B | W"
+    },
+    {
+      "id": "board.r9c3",
+      "kind": "value",
+      "value": "",
+      "description": "square C9: '' | B | W"
+    },
+    {
+      "id": "board.r9c4",
+      "kind": "value",
+      "value": "",
+      "description": "square D9: '' | B | W"
+    },
+    {
+      "id": "board.r9c5",
+      "kind": "value",
+      "value": "",
+      "description": "square E9: '' | B | W"
+    },
+    {
+      "id": "board.r9c6",
+      "kind": "value",
+      "value": "",
+      "description": "square F9: '' | B | W"
+    },
+    {
+      "id": "board.r9c7",
+      "kind": "value",
+      "value": "",
+      "description": "square G9: '' | B | W"
+    },
+    {
+      "id": "board.r9c8",
+      "kind": "value",
+      "value": "",
+      "description": "square H9: '' | B | W"
+    },
+    {
+      "id": "board.r9c9",
+      "kind": "value",
+      "value": "",
+      "description": "square I9: '' | B | W"
+    },
+    {
+      "id": "board.grid",
+      "kind": "value",
+      "value": [
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ]
+      ],
+      "description": "mirror of the 81 board cells"
+    },
+    {
+      "id": "flip.trace",
+      "kind": "value",
+      "value": [],
+      "description": "the placement trace of the last accepted move"
+    },
+    {
+      "id": "turn.current",
+      "kind": "value",
+      "value": "B",
+      "description": "B | W"
+    },
+    {
+      "id": "phase.current",
+      "kind": "value",
+      "value": "play",
+      "description": "play | over"
+    },
+    {
+      "id": "winner.current",
+      "kind": "value",
+      "value": null,
+      "description": "B | W | draw | null"
+    },
+    {
+      "id": "winner.line",
+      "kind": "value",
+      "value": null,
+      "description": "winning squares (R3) for highlighting"
+    },
+    {
+      "id": "match.seq",
+      "kind": "value",
+      "value": 0,
+      "description": "monotonic request sequence"
+    },
+    {
+      "id": "score.b",
+      "kind": "formula",
+      "expr": "board.grid.flat().filter(x => x === 'B').length",
+      "description": "BLACK stones"
+    },
+    {
+      "id": "score.w",
+      "kind": "formula",
+      "expr": "board.grid.flat().filter(x => x === 'W').length",
+      "description": "WHITE stones"
+    },
+    {
+      "id": "rule.R1.check",
+      "kind": "program",
+      "code": "\n\nconst COLS = 'ABCDEFGHI';\nconst N = 9;\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst AXES = [[0,1],[1,0],[1,1],[1,-1]];\n// the contiguous own run through (r,c) along one axis: [run, end1, end2]\n// end cells are '', 'B', 'W' or 'X' (off board)\nconst runAt = (grid, r, c, p, d) => {\n  let n = 0;\n  const ends = [];\n  for (const s of [1, -1]) {\n    let rr = r + s * d[0], cc = c + s * d[1];\n    while (rr >= 0 && rr < N && cc >= 0 && cc < N && grid[rr][cc] === p) { n++; rr += s * d[0]; cc += s * d[1]; }\n    ends.push(rr < 0 || rr >= N || cc < 0 || cc >= N ? 'X' : grid[rr][cc]);\n  }\n  return { n, e1: ends[0], e2: ends[1] };\n};\n// pattern value of the square (r,c) for player p on grid (pre-move): the best\n// shape the player would create here, across the 4 axes. five > open4 > four > open3.\nconst patternAt = (grid, r, c, p) => {\n  let five = 0, open4 = 0, four = 0, open3 = 0;\n  for (const d of AXES) {\n    const { n, e1, e2 } = runAt(grid, r, c, p, d);\n    const withMe = n + 1;\n    const open = (x) => x === '';\n    if (withMe >= 5) { five++; continue; }\n    if (withMe === 4) { if (open(e1) && open(e2)) open4++; else if (open(e1) || open(e2)) four++; continue; }\n    if (withMe === 3) { if (open(e1) && open(e2)) open3++; continue; }\n  }\n  return { five, open4, four, open3 };\n};\n// candidates: empty squares within Chebyshev distance 2 of any stone\nconst candidates = (grid) => {\n  const near = (r, c) => {\n    for (let rr = Math.max(0, r - 2); rr <= Math.min(N - 1, r + 2); rr++)\n      for (let cc = Math.max(0, c - 2); cc <= Math.min(N - 1, c + 2); cc++)\n        if (grid[rr][cc] !== '') return true;\n    return false;\n  };\n  const out = [];\n  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++)\n    if (grid[r][c] === '' && near(r, c)) out.push({ r, c, sq: sq(r, c) });\n  if (!out.length && grid[4][4] === '') out.push({ r: 4, c: 4, sq: sq(4, 4) }); // opening move\n  return out;\n};\nconst r = input?.r, c = input?.c;\nconst fired = !(Number.isInteger(r) && r >= 0 && r < N && Number.isInteger(c) && c >= 0 && c < N);\nreturn { fired, why: fired\n  ? 'Square ' + JSON.stringify(input?.r) + ',' + JSON.stringify(input?.c) + ' is outside the 9x9 grid — naming it is not a move.'\n  : 'Square ' + sq(r, c) + ' exists.' };",
+      "description": "R1 port: bounds",
+      "deps": []
+    },
+    {
+      "id": "rule.R2.check",
+      "kind": "program",
+      "code": "\n\nconst COLS = 'ABCDEFGHI';\nconst N = 9;\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst AXES = [[0,1],[1,0],[1,1],[1,-1]];\n// the contiguous own run through (r,c) along one axis: [run, end1, end2]\n// end cells are '', 'B', 'W' or 'X' (off board)\nconst runAt = (grid, r, c, p, d) => {\n  let n = 0;\n  const ends = [];\n  for (const s of [1, -1]) {\n    let rr = r + s * d[0], cc = c + s * d[1];\n    while (rr >= 0 && rr < N && cc >= 0 && cc < N && grid[rr][cc] === p) { n++; rr += s * d[0]; cc += s * d[1]; }\n    ends.push(rr < 0 || rr >= N || cc < 0 || cc >= N ? 'X' : grid[rr][cc]);\n  }\n  return { n, e1: ends[0], e2: ends[1] };\n};\n// pattern value of the square (r,c) for player p on grid (pre-move): the best\n// shape the player would create here, across the 4 axes. five > open4 > four > open3.\nconst patternAt = (grid, r, c, p) => {\n  let five = 0, open4 = 0, four = 0, open3 = 0;\n  for (const d of AXES) {\n    const { n, e1, e2 } = runAt(grid, r, c, p, d);\n    const withMe = n + 1;\n    const open = (x) => x === '';\n    if (withMe >= 5) { five++; continue; }\n    if (withMe === 4) { if (open(e1) && open(e2)) open4++; else if (open(e1) || open(e2)) four++; continue; }\n    if (withMe === 3) { if (open(e1) && open(e2)) open3++; continue; }\n  }\n  return { five, open4, four, open3 };\n};\n// candidates: empty squares within Chebyshev distance 2 of any stone\nconst candidates = (grid) => {\n  const near = (r, c) => {\n    for (let rr = Math.max(0, r - 2); rr <= Math.min(N - 1, r + 2); rr++)\n      for (let cc = Math.max(0, c - 2); cc <= Math.min(N - 1, c + 2); cc++)\n        if (grid[rr][cc] !== '') return true;\n    return false;\n  };\n  const out = [];\n  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++)\n    if (grid[r][c] === '' && near(r, c)) out.push({ r, c, sq: sq(r, c) });\n  if (!out.length && grid[4][4] === '') out.push({ r: 4, c: 4, sq: sq(4, 4) }); // opening move\n  return out;\n};\nconst r = input?.r, c = input?.c, grid = input?.grid;\nconst holder = (grid && r >= 0 && r < N && c >= 0 && c < N) ? grid[r][c] : null;\nconst fired = !!holder;\nreturn { fired, why: fired\n  ? 'Square ' + sq(r, c) + ' already holds a ' + (holder === 'B' ? 'BLACK' : 'WHITE') + ' stone — stones never move and are never captured.'\n  : 'Square ' + (r != null ? sq(r, c) : '?') + ' is empty.' };",
+      "description": "R2 port: empty square",
+      "deps": []
+    },
+    {
+      "id": "rule.R3.check",
+      "kind": "program",
+      "code": "\n\nconst COLS = 'ABCDEFGHI';\nconst N = 9;\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst AXES = [[0,1],[1,0],[1,1],[1,-1]];\n// the contiguous own run through (r,c) along one axis: [run, end1, end2]\n// end cells are '', 'B', 'W' or 'X' (off board)\nconst runAt = (grid, r, c, p, d) => {\n  let n = 0;\n  const ends = [];\n  for (const s of [1, -1]) {\n    let rr = r + s * d[0], cc = c + s * d[1];\n    while (rr >= 0 && rr < N && cc >= 0 && cc < N && grid[rr][cc] === p) { n++; rr += s * d[0]; cc += s * d[1]; }\n    ends.push(rr < 0 || rr >= N || cc < 0 || cc >= N ? 'X' : grid[rr][cc]);\n  }\n  return { n, e1: ends[0], e2: ends[1] };\n};\n// pattern value of the square (r,c) for player p on grid (pre-move): the best\n// shape the player would create here, across the 4 axes. five > open4 > four > open3.\nconst patternAt = (grid, r, c, p) => {\n  let five = 0, open4 = 0, four = 0, open3 = 0;\n  for (const d of AXES) {\n    const { n, e1, e2 } = runAt(grid, r, c, p, d);\n    const withMe = n + 1;\n    const open = (x) => x === '';\n    if (withMe >= 5) { five++; continue; }\n    if (withMe === 4) { if (open(e1) && open(e2)) open4++; else if (open(e1) || open(e2)) four++; continue; }\n    if (withMe === 3) { if (open(e1) && open(e2)) open3++; continue; }\n  }\n  return { five, open4, four, open3 };\n};\n// candidates: empty squares within Chebyshev distance 2 of any stone\nconst candidates = (grid) => {\n  const near = (r, c) => {\n    for (let rr = Math.max(0, r - 2); rr <= Math.min(N - 1, r + 2); rr++)\n      for (let cc = Math.max(0, c - 2); cc <= Math.min(N - 1, c + 2); cc++)\n        if (grid[rr][cc] !== '') return true;\n    return false;\n  };\n  const out = [];\n  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++)\n    if (grid[r][c] === '' && near(r, c)) out.push({ r, c, sq: sq(r, c) });\n  if (!out.length && grid[4][4] === '') out.push({ r: 4, c: 4, sq: sq(4, 4) }); // opening move\n  return out;\n};\nconst grid = input?.grid, r = input?.r, c = input?.c, player = input?.player;\nfor (const d of AXES) {\n  const { n } = runAt(grid, r, c, player, d);\n  if (n + 1 >= 5) {\n    const cells = [[r, c]];\n    for (const s of [1, -1]) {\n      let rr = r + s * d[0], cc = c + s * d[1];\n      while (rr >= 0 && rr < N && cc >= 0 && cc < N && grid[rr][cc] === player) { cells.push([rr, cc]); rr += s * d[0]; cc += s * d[1]; }\n    }\n    const line = cells.map(([a, b]) => ({ r: a, c: b, sq: sq(a, b) })).sort((x, y) => (x.r - y.r) || (x.c - y.c));\n    return { fired: true, line: line.map(x => x.sq),\n      why: (player === 'B' ? 'BLACK' : 'WHITE') + ' owns ' + line.length + ' in a line: ' + line.map(x => x.sq).join(' - ') + '. Game over.' };\n  }\n}\nreturn { fired: false, line: null, why: 'No five-in-line through ' + sq(r, c) + '.' };",
+      "description": "R3 port: five-in-line through the placed stone",
+      "deps": []
+    },
+    {
+      "id": "rule.R4.check",
+      "kind": "program",
+      "code": "\n\nconst COLS = 'ABCDEFGHI';\nconst N = 9;\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst AXES = [[0,1],[1,0],[1,1],[1,-1]];\n// the contiguous own run through (r,c) along one axis: [run, end1, end2]\n// end cells are '', 'B', 'W' or 'X' (off board)\nconst runAt = (grid, r, c, p, d) => {\n  let n = 0;\n  const ends = [];\n  for (const s of [1, -1]) {\n    let rr = r + s * d[0], cc = c + s * d[1];\n    while (rr >= 0 && rr < N && cc >= 0 && cc < N && grid[rr][cc] === p) { n++; rr += s * d[0]; cc += s * d[1]; }\n    ends.push(rr < 0 || rr >= N || cc < 0 || cc >= N ? 'X' : grid[rr][cc]);\n  }\n  return { n, e1: ends[0], e2: ends[1] };\n};\n// pattern value of the square (r,c) for player p on grid (pre-move): the best\n// shape the player would create here, across the 4 axes. five > open4 > four > open3.\nconst patternAt = (grid, r, c, p) => {\n  let five = 0, open4 = 0, four = 0, open3 = 0;\n  for (const d of AXES) {\n    const { n, e1, e2 } = runAt(grid, r, c, p, d);\n    const withMe = n + 1;\n    const open = (x) => x === '';\n    if (withMe >= 5) { five++; continue; }\n    if (withMe === 4) { if (open(e1) && open(e2)) open4++; else if (open(e1) || open(e2)) four++; continue; }\n    if (withMe === 3) { if (open(e1) && open(e2)) open3++; continue; }\n  }\n  return { five, open4, four, open3 };\n};\n// candidates: empty squares within Chebyshev distance 2 of any stone\nconst candidates = (grid) => {\n  const near = (r, c) => {\n    for (let rr = Math.max(0, r - 2); rr <= Math.min(N - 1, r + 2); rr++)\n      for (let cc = Math.max(0, c - 2); cc <= Math.min(N - 1, c + 2); cc++)\n        if (grid[rr][cc] !== '') return true;\n    return false;\n  };\n  const out = [];\n  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++)\n    if (grid[r][c] === '' && near(r, c)) out.push({ r, c, sq: sq(r, c) });\n  if (!out.length && grid[4][4] === '') out.push({ r: 4, c: 4, sq: sq(4, 4) }); // opening move\n  return out;\n};\nconst grid = input?.grid;\nlet n = 0;\nfor (const row of grid) for (const x of row) if (x !== '') n++;\nconst fired = n === N * N;\nreturn { fired, n,\n  why: fired ? 'All 81 squares hold stones and no five was completed — the game is a draw.'\n             : 'Board holds ' + n + '/81 stones.' };",
+      "description": "R4 port: full-board draw",
+      "deps": []
+    },
+    {
+      "id": "rule.R5.check",
+      "kind": "program",
+      "code": "\n\nconst COLS = 'ABCDEFGHI';\nconst N = 9;\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst AXES = [[0,1],[1,0],[1,1],[1,-1]];\n// the contiguous own run through (r,c) along one axis: [run, end1, end2]\n// end cells are '', 'B', 'W' or 'X' (off board)\nconst runAt = (grid, r, c, p, d) => {\n  let n = 0;\n  const ends = [];\n  for (const s of [1, -1]) {\n    let rr = r + s * d[0], cc = c + s * d[1];\n    while (rr >= 0 && rr < N && cc >= 0 && cc < N && grid[rr][cc] === p) { n++; rr += s * d[0]; cc += s * d[1]; }\n    ends.push(rr < 0 || rr >= N || cc < 0 || cc >= N ? 'X' : grid[rr][cc]);\n  }\n  return { n, e1: ends[0], e2: ends[1] };\n};\n// pattern value of the square (r,c) for player p on grid (pre-move): the best\n// shape the player would create here, across the 4 axes. five > open4 > four > open3.\nconst patternAt = (grid, r, c, p) => {\n  let five = 0, open4 = 0, four = 0, open3 = 0;\n  for (const d of AXES) {\n    const { n, e1, e2 } = runAt(grid, r, c, p, d);\n    const withMe = n + 1;\n    const open = (x) => x === '';\n    if (withMe >= 5) { five++; continue; }\n    if (withMe === 4) { if (open(e1) && open(e2)) open4++; else if (open(e1) || open(e2)) four++; continue; }\n    if (withMe === 3) { if (open(e1) && open(e2)) open3++; continue; }\n  }\n  return { five, open4, four, open3 };\n};\n// candidates: empty squares within Chebyshev distance 2 of any stone\nconst candidates = (grid) => {\n  const near = (r, c) => {\n    for (let rr = Math.max(0, r - 2); rr <= Math.min(N - 1, r + 2); rr++)\n      for (let cc = Math.max(0, c - 2); cc <= Math.min(N - 1, c + 2); cc++)\n        if (grid[rr][cc] !== '') return true;\n    return false;\n  };\n  const out = [];\n  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++)\n    if (grid[r][c] === '' && near(r, c)) out.push({ r, c, sq: sq(r, c) });\n  if (!out.length && grid[4][4] === '') out.push({ r: 4, c: 4, sq: sq(4, 4) }); // opening move\n  return out;\n};\n// ADVISORY: strongest live shape for the side to move and for the opponent.\nconst grid = input?.grid, mover = input?.player;\nconst scan = (p) => {\n  const best = { five: 0, open4: 0, four: 0, open3: 0 };\n  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {\n    if (grid[r][c] !== p) continue;\n    for (const d of AXES) {\n      const { n, e1, e2 } = runAt(grid, r, c, p, d);\n      const open = (x) => x === '';\n      // n counts the run EXCLUDING the stone at (r,c); the run length is n+1\n      if (n + 1 >= 4) best.five++;\n      else if (n + 1 === 3 && open(e1) && open(e2)) best.open4++;\n      else if (n + 1 === 3) best.four++;\n      else if (n + 1 === 2 && open(e1) && open(e2)) best.open3++;\n    }\n  }\n  return best;\n};\nconst mine = scan(mover), theirs = scan(opp(mover));\nconst parts = [];\nif (theirs.five) parts.push('DANGER: the opponent has four in a line — they complete five next turn unless answered.');\nelse if (theirs.open4) parts.push('DANGER: the opponent has an open three — it becomes an open four next turn.');\nelse if (mine.five) parts.push('You hold four in a line — complete the five to win.');\nelse if (mine.open4) parts.push('You hold an open three — a threat worth building on.');\nelse if (theirs.four) parts.push('The opponent has a split three — watch for a four.');\nelse if (mine.open3) parts.push('You hold a developing open shape.');\nreturn { fired: parts.length > 0, mine, theirs, why: parts.length ? parts.join(' ') : 'No decisive shapes on the board.' };",
+      "description": "R5 port: advisory shape scan",
+      "deps": []
+    },
+    {
+      "id": "move.arbiter",
+      "kind": "program",
+      "code": "\n// THE REFEREE — sequences rule cells, applies the placement, keeps the ledger.\n\nconst COLS = 'ABCDEFGHI';\nconst N = 9;\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst AXES = [[0,1],[1,0],[1,1],[1,-1]];\n// the contiguous own run through (r,c) along one axis: [run, end1, end2]\n// end cells are '', 'B', 'W' or 'X' (off board)\nconst runAt = (grid, r, c, p, d) => {\n  let n = 0;\n  const ends = [];\n  for (const s of [1, -1]) {\n    let rr = r + s * d[0], cc = c + s * d[1];\n    while (rr >= 0 && rr < N && cc >= 0 && cc < N && grid[rr][cc] === p) { n++; rr += s * d[0]; cc += s * d[1]; }\n    ends.push(rr < 0 || rr >= N || cc < 0 || cc >= N ? 'X' : grid[rr][cc]);\n  }\n  return { n, e1: ends[0], e2: ends[1] };\n};\n// pattern value of the square (r,c) for player p on grid (pre-move): the best\n// shape the player would create here, across the 4 axes. five > open4 > four > open3.\nconst patternAt = (grid, r, c, p) => {\n  let five = 0, open4 = 0, four = 0, open3 = 0;\n  for (const d of AXES) {\n    const { n, e1, e2 } = runAt(grid, r, c, p, d);\n    const withMe = n + 1;\n    const open = (x) => x === '';\n    if (withMe >= 5) { five++; continue; }\n    if (withMe === 4) { if (open(e1) && open(e2)) open4++; else if (open(e1) || open(e2)) four++; continue; }\n    if (withMe === 3) { if (open(e1) && open(e2)) open3++; continue; }\n  }\n  return { five, open4, four, open3 };\n};\n// candidates: empty squares within Chebyshev distance 2 of any stone\nconst candidates = (grid) => {\n  const near = (r, c) => {\n    for (let rr = Math.max(0, r - 2); rr <= Math.min(N - 1, r + 2); rr++)\n      for (let cc = Math.max(0, c - 2); cc <= Math.min(N - 1, c + 2); cc++)\n        if (grid[rr][cc] !== '') return true;\n    return false;\n  };\n  const out = [];\n  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++)\n    if (grid[r][c] === '' && near(r, c)) out.push({ r, c, sq: sq(r, c) });\n  if (!out.length && grid[4][4] === '') out.push({ r: 4, c: 4, sq: sq(4, 4) }); // opening move\n  return out;\n};\nconst seq = input?.seq ?? 0;\nconst r = input?.r, c = input?.c, player = input?.player;\nconst last = (await runtime.get('match.seq')).data;\nif (seq <= last) return { ok: false, rule: 'DUP', text: 'stale request (seq ' + seq + ' <= ' + last + ') — nothing happened.' };\nconst done = async (verdict) => {\n  const log = (await runtime.get('log.events')).data;\n  await runtime.set('log.events', [...log.slice(-199), {\n    ts: Date.now(), kind: verdict.ok ? 'apply' : 'refuse', rule: verdict.rule ?? null, seq, text: verdict.text }]);\n  await runtime.set('rules.verdict', { ...verdict, seq, ts: Date.now() });\n  return verdict;\n};\nlet grid = (await runtime.get('board.grid')).data.map(row => row.slice());\nconst phase = (await runtime.get('phase.current')).data;\nconst fired = [];\n\nif (phase !== 'play') {\n  await runtime.set('rules.fired', ['R4']);\n  return done({ ok: false, rule: 'R4', text: 'The board is closed — no further moves are accepted.' });\n}\n\nconst r1 = (await runtime.call('rule.R1.check', { r, c, seq })).data;\nawait runtime.set('rule.R1.verdict', { ...r1, ts: Date.now() });\nfired.push('R1');\nif (r1.fired) { await runtime.set('rules.fired', fired); return done({ ok: false, rule: 'R1', text: r1.why }); }\n\nconst r2 = (await runtime.call('rule.R2.check', { r, c, grid, seq })).data;\nawait runtime.set('rule.R2.verdict', { ...r2, ts: Date.now() });\nfired.push('R2');\nif (r2.fired) { await runtime.set('rules.fired', fired); return done({ ok: false, rule: 'R2', text: r2.why }); }\n\n// ACCEPTED — place the stone\nconst trace = [{ sq: sq(r, c), from: '', to: player, ray: 'place' }];\nawait runtime.set('board.r' + (r + 1) + 'c' + (c + 1), player);\ngrid[r][c] = player;\nawait runtime.set('board.grid', grid);\nawait runtime.set('flip.trace', trace);\n\n// R3 five-in-line\nconst r3 = (await runtime.call('rule.R3.check', { grid, r, c, player, seq })).data;\nawait runtime.set('rule.R3.verdict', { ...r3, ts: Date.now() });\nif (r3.fired) {\n  fired.push('R3');\n  await runtime.set('rules.fired', fired);\n  await runtime.set('phase.current', 'over');\n  await runtime.set('winner.current', player);\n  await runtime.set('winner.line', r3.line);\n  await runtime.set('match.seq', seq);\n  return done({ ok: true, rule: 'R3', text: r3.why, fired, trace, line: r3.line });\n}\n\n// R4 draw\nconst r4 = (await runtime.call('rule.R4.check', { grid, seq })).data;\nawait runtime.set('rule.R4.verdict', { ...r4, ts: Date.now() });\nif (r4.fired) {\n  fired.push('R4');\n  await runtime.set('rules.fired', fired);\n  await runtime.set('phase.current', 'over');\n  await runtime.set('winner.current', 'draw');\n  await runtime.set('match.seq', seq);\n  return done({ ok: true, rule: 'R4', text: r4.why, fired, trace });\n}\n\n// R5 advisory threat scan for the side to move\nconst r5 = (await runtime.call('rule.R5.check', { grid, player: opp(player), seq })).data;\nawait runtime.set('rule.R5.verdict', { ...r5, ts: Date.now() });\nif (r5.fired) fired.push('R5');\n\nawait runtime.set('turn.current', opp(player));\nawait runtime.set('match.seq', seq);\nawait runtime.set('rules.fired', fired);\nconst tail = r5.fired ? ' ' + r5.why : '';\nreturn done({ ok: true, rule: 'R2', text: (player === 'B' ? 'BLACK' : 'WHITE') + ' plays ' + sq(r, c) + '.' + tail, fired, trace });",
+      "description": "THE REFEREE — sequences rule cells, applies placement, keeps the ledger",
+      "deps": [
+        "move.request"
+      ]
+    },
+    {
+      "id": "move.dispatch",
+      "kind": "program",
+      "code": "\nconst ev = input ?? {};\nlet req = null;\nif (ev.r != null) req = ev;\nelse if (ev.value?.r != null) req = ev.value;\nelse if (caller?.metadata?.current?.r != null) req = caller.metadata.current;\nelse req = (await runtime.get('move.request')).data;\nif (!req || req.r == null) return { skipped: true };\nreturn (await runtime.call('move.arbiter', req)).data;",
+      "description": "push trampoline: move.request -> move.arbiter",
+      "deps": [
+        "move.request"
+      ]
+    },
+    {
+      "id": "move.push",
+      "kind": "listener",
+      "watch": [
+        "move.request"
+      ],
+      "action": "move.dispatch",
+      "description": "push of one value drives the cascade"
+    },
+    {
+      "id": "move.request",
+      "kind": "value",
+      "value": null,
+      "description": "UI writes {r,c,player,seq} here — the entire input surface"
+    },
+    {
+      "id": "ai.weights",
+      "kind": "value",
+      "value": {
+        "five": 8,
+        "open4": 2,
+        "four": 1,
+        "open3": 0.5,
+        "blockFive": 0,
+        "blockOpen4": 0,
+        "blockFour": 0,
+        "tookFive": 0,
+        "missedFive": 0,
+        "tookOpen4": 0,
+        "missedOpen4": 0
+      },
+      "description": "learner policy weights (theta) — updated by learn.update"
+    },
+    {
+      "id": "ai.fixed_weights",
+      "kind": "value",
+      "value": {
+        "five": 8,
+        "open4": 2,
+        "four": 1,
+        "open3": 0.5,
+        "blockFive": 0,
+        "blockOpen4": 0,
+        "blockFour": 0,
+        "tookFive": 0,
+        "missedFive": 0,
+        "tookOpen4": 0,
+        "missedOpen4": 0
+      },
+      "description": "frozen baseline opponent weights (never learns — the control group)"
+    },
+    {
+      "id": "ai.move_log",
+      "kind": "value",
+      "value": [],
+      "description": "feature vectors of the learner's moves this game"
+    },
+    {
+      "id": "ai.features",
+      "kind": "program",
+      "code": "\n\nconst COLS = 'ABCDEFGHI';\nconst N = 9;\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst AXES = [[0,1],[1,0],[1,1],[1,-1]];\n// the contiguous own run through (r,c) along one axis: [run, end1, end2]\n// end cells are '', 'B', 'W' or 'X' (off board)\nconst runAt = (grid, r, c, p, d) => {\n  let n = 0;\n  const ends = [];\n  for (const s of [1, -1]) {\n    let rr = r + s * d[0], cc = c + s * d[1];\n    while (rr >= 0 && rr < N && cc >= 0 && cc < N && grid[rr][cc] === p) { n++; rr += s * d[0]; cc += s * d[1]; }\n    ends.push(rr < 0 || rr >= N || cc < 0 || cc >= N ? 'X' : grid[rr][cc]);\n  }\n  return { n, e1: ends[0], e2: ends[1] };\n};\n// pattern value of the square (r,c) for player p on grid (pre-move): the best\n// shape the player would create here, across the 4 axes. five > open4 > four > open3.\nconst patternAt = (grid, r, c, p) => {\n  let five = 0, open4 = 0, four = 0, open3 = 0;\n  for (const d of AXES) {\n    const { n, e1, e2 } = runAt(grid, r, c, p, d);\n    const withMe = n + 1;\n    const open = (x) => x === '';\n    if (withMe >= 5) { five++; continue; }\n    if (withMe === 4) { if (open(e1) && open(e2)) open4++; else if (open(e1) || open(e2)) four++; continue; }\n    if (withMe === 3) { if (open(e1) && open(e2)) open3++; continue; }\n  }\n  return { five, open4, four, open3 };\n};\n// candidates: empty squares within Chebyshev distance 2 of any stone\nconst candidates = (grid) => {\n  const near = (r, c) => {\n    for (let rr = Math.max(0, r - 2); rr <= Math.min(N - 1, r + 2); rr++)\n      for (let cc = Math.max(0, c - 2); cc <= Math.min(N - 1, c + 2); cc++)\n        if (grid[rr][cc] !== '') return true;\n    return false;\n  };\n  const out = [];\n  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++)\n    if (grid[r][c] === '' && near(r, c)) out.push({ r, c, sq: sq(r, c) });\n  if (!out.length && grid[4][4] === '') out.push({ r: 4, c: 4, sq: sq(4, 4) }); // opening move\n  return out;\n};\n// features of placing at (r,c): my new shapes + the opponent shapes I erase.\nconst grid = input?.grid, r = input?.r, c = input?.c, player = input?.player;\nif (grid[r][c] !== '') return null;\nconst mine = patternAt(grid, r, c, player);\nconst theirs = patternAt(grid, r, c, opp(player));   // what the enemy would get HERE — occupying erases it\nreturn { f: {\n  five: mine.five, open4: mine.open4, four: mine.four, open3: mine.open3,\n  blockFive: theirs.five, blockOpen4: theirs.open4, blockFour: theirs.four,\n} };",
+      "description": "pattern features of a candidate square (pure)",
+      "deps": []
+    },
+    {
+      "id": "ai.choose",
+      "kind": "program",
+      "code": "\n\nconst COLS = 'ABCDEFGHI';\nconst N = 9;\nconst sq = (r, c) => COLS[c] + (r + 1);\nconst opp = (p) => p === 'B' ? 'W' : 'B';\nconst AXES = [[0,1],[1,0],[1,1],[1,-1]];\n// the contiguous own run through (r,c) along one axis: [run, end1, end2]\n// end cells are '', 'B', 'W' or 'X' (off board)\nconst runAt = (grid, r, c, p, d) => {\n  let n = 0;\n  const ends = [];\n  for (const s of [1, -1]) {\n    let rr = r + s * d[0], cc = c + s * d[1];\n    while (rr >= 0 && rr < N && cc >= 0 && cc < N && grid[rr][cc] === p) { n++; rr += s * d[0]; cc += s * d[1]; }\n    ends.push(rr < 0 || rr >= N || cc < 0 || cc >= N ? 'X' : grid[rr][cc]);\n  }\n  return { n, e1: ends[0], e2: ends[1] };\n};\n// pattern value of the square (r,c) for player p on grid (pre-move): the best\n// shape the player would create here, across the 4 axes. five > open4 > four > open3.\nconst patternAt = (grid, r, c, p) => {\n  let five = 0, open4 = 0, four = 0, open3 = 0;\n  for (const d of AXES) {\n    const { n, e1, e2 } = runAt(grid, r, c, p, d);\n    const withMe = n + 1;\n    const open = (x) => x === '';\n    if (withMe >= 5) { five++; continue; }\n    if (withMe === 4) { if (open(e1) && open(e2)) open4++; else if (open(e1) || open(e2)) four++; continue; }\n    if (withMe === 3) { if (open(e1) && open(e2)) open3++; continue; }\n  }\n  return { five, open4, four, open3 };\n};\n// candidates: empty squares within Chebyshev distance 2 of any stone\nconst candidates = (grid) => {\n  const near = (r, c) => {\n    for (let rr = Math.max(0, r - 2); rr <= Math.min(N - 1, r + 2); rr++)\n      for (let cc = Math.max(0, c - 2); cc <= Math.min(N - 1, c + 2); cc++)\n        if (grid[rr][cc] !== '') return true;\n    return false;\n  };\n  const out = [];\n  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++)\n    if (grid[r][c] === '' && near(r, c)) out.push({ r, c, sq: sq(r, c) });\n  if (!out.length && grid[4][4] === '') out.push({ r: 4, c: 4, sq: sq(4, 4) }); // opening move\n  return out;\n};\n\n    const rng = (seed) => { let a = (seed ?? 1) >>> 0;\n      return () => { a |= 0; a = (a + 0x6D2B79F5) | 0;\n        let t = Math.imul(a ^ (a >>> 15), 1 | a);\n        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;\n        return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };\nconst grid = (await runtime.get('board.grid')).data;\nconst player = input?.player ?? (await runtime.get('turn.current')).data;\nconst weights = input?.weights ?? (await runtime.get('ai.weights')).data;\nconst seed = input?.seed ?? 1;\nconst phase = (await runtime.get('phase.current')).data;\nif (phase !== 'play') return null;\nconst cands = candidates(grid);\nif (!cands.length) return { pass: true, player };\nconst scored = [];\nfor (const m of cands) {\n  const out = (await runtime.call('ai.features', { grid, r: m.r, c: m.c, player, seq: seed + ':' + m.sq })).data;\n  if (!out) continue;\n  let s = 0; for (const k of Object.keys(weights)) s += (weights[k] ?? 0) * (out.f[k] ?? 0);\n  scored.push({ ...m, score: Math.round(s * 100) / 100, f: out.f });\n}\nscored.sort((a, b) => b.score - a.score);\n// hindsight-eligible features: was an immediate opportunity square available,\n// and did THIS move take it or ignore it? (gives missed blocks a gradient)\nlet fiveSq = null, fourSq = null;\nfor (const m of scored) {\n  if (m.f.blockFive > 0 && !fiveSq) fiveSq = m.sq;\n  if (m.f.blockOpen4 > 0 && !fourSq) fourSq = m.sq;\n}\nfor (const m of scored) {\n  m.f.tookFive = fiveSq && m.sq === fiveSq ? 1 : 0;\n  m.f.missedFive = fiveSq && m.sq !== fiveSq ? 1 : 0;\n  m.f.tookOpen4 = fourSq && m.sq === fourSq ? 1 : 0;\n  m.f.missedOpen4 = fourSq && m.sq !== fourSq ? 1 : 0;\n  let s2 = 0; for (const k of Object.keys(weights)) s2 += (weights[k] ?? 0) * (m.f[k] ?? 0);\n  m.score = Math.round(s2 * 100) / 100;\n}\nscored.sort((a, b) => b.score - a.score);\nconst rnd = rng(seed * 7919 + r2s(grid));\nconst top = scored.slice(0, Math.min(3, scored.length));\nconst pick = rnd() < 0.85 ? top[0] : top[Math.floor(rnd() * top.length)];\nreturn { ...pick, player, considered: scored.length,\n  why: player + ' plays ' + pick.sq + ' (score ' + pick.score + ')' };\nfunction r2s(g) { let h = 0; for (const row of g) for (const x of row) h = (h * 31 + (x === 'B' ? 1 : x === 'W' ? 2 : 0)) | 0; return h >>> 0; }",
+      "description": "score candidate squares by dot(theta, features); seeded tie-break",
+      "deps": [
+        "board.grid",
+        "turn.current",
+        "phase.current",
+        "ai.weights"
+      ]
+    },
+    {
+      "id": "learn.alpha",
+      "kind": "value",
+      "value": 0.08,
+      "description": "perceptron learning rate"
+    },
+    {
+      "id": "learn.gen",
+      "kind": "value",
+      "value": 0,
+      "description": "generations learned so far"
+    },
+    {
+      "id": "learn.receipts",
+      "kind": "value",
+      "value": [],
+      "description": "fnv1a64 hash-chained witness receipts: one per game"
+    },
+    {
+      "id": "learn.last",
+      "kind": "value",
+      "value": null,
+      "description": "snapshot of the latest update"
+    },
+    {
+      "id": "learn.update",
+      "kind": "program",
+      "code": "\n\n    const fnv1a64 = (s) => { let h = 0xcbf29ce484222325n;\n      const p = 0x100000001b3n, m = 0xffffffffffffffffn;\n      for (let i = 0; i < s.length; i++) { h ^= BigInt(s.charCodeAt(i)); h = (h * p) & m; }\n      return h.toString(16).padStart(16, '0'); };\n    const canon = (row) => { const s = {}; for (const k of Object.keys(row).sort()) s[k] = row[k];\n      return JSON.stringify(s); };\n    const GENESIS_PREV = '0'.repeat(16);\n// learn.update input {side} — averaged perceptron + witness receipt.\nconst side = input?.side ?? 'B';\nconst winner = (await runtime.get('winner.current')).data;\nconst s = winner === 'draw' ? 0 : (winner === side ? 1 : -1);\nconst alpha = (await runtime.get('learn.alpha')).data;\nconst moves = (await runtime.get('ai.move_log')).data;\nconst theta = { ...(await runtime.get('ai.weights')).data };\nfor (const f of moves) for (const k of Object.keys(theta))\n  theta[k] = Math.max(-8, Math.min(12, theta[k] + alpha * s * (f[k] ?? 0)));\nconst gen = (await runtime.get('learn.gen')).data + 1;\nawait runtime.set('ai.weights', theta);\nawait runtime.set('learn.gen', gen);\nconst receipts = (await runtime.get('learn.receipts')).data;\nconst hist = receipts.filter(x => x.side === side).slice(0, 9);\nconst wins = (s > 0 ? 1 : 0) + hist.filter(x => x.result === 'W').length;\nconst rate = Math.round((100 * wins) / (hist.length + 1));\nconst prev = receipts.length ? receipts[receipts.length - 1].row_hash : GENESIS_PREV;\nconst fields = { seq: gen, side, result: s > 0 ? 'W' : s < 0 ? 'L' : 'D',\n  score_b: (await runtime.get('score.b')).data, score_w: (await runtime.get('score.w')).data,\n  theta_hash: fnv1a64(canon(theta)), win_rate10: rate };\nconst row = { ...fields, prev_hash: prev, row_hash: fnv1a64(canon({ ...fields, prev_hash: prev })) };\nawait runtime.set('learn.receipts', [...receipts, row]);\nawait runtime.set('ai.move_log', []);\nawait runtime.set('learn.last', { gen, theta, receipt: row });\nreturn { gen, theta, result: row.result, win_rate10: rate, receipt: row };",
+      "description": "perceptron update + witness receipt (call once per finished game)",
+      "deps": [
+        "winner.current",
+        "score.b",
+        "score.w",
+        "ai.move_log",
+        "ai.weights"
+      ]
+    },
+    {
+      "id": "match.step",
+      "kind": "program",
+      "code": "\n// one AI ply; input {weights?, seed?, log?}. match.seq is owned by the arbiter.\nconst phase = (await runtime.get('phase.current')).data;\nif (phase !== 'play') return { over: true };\nconst player = (await runtime.get('turn.current')).data;\nconst choice = (await runtime.call('ai.choose', { player, weights: input?.weights, seed: input?.seed ?? 1 })).data;\nif (!choice || choice.pass) return { pass: true, player };\nif (input?.log) {\n  const log = (await runtime.get('ai.move_log')).data;\n  await runtime.set('ai.move_log', [...log, choice.f]);\n}\nreturn (await runtime.call('move.arbiter', { r: choice.r, c: choice.c, player, seq: (await runtime.get('match.seq')).data + 1 })).data;",
+      "description": "one AI ply (input {weights?, seed?, log?})",
+      "deps": [
+        "phase.current",
+        "turn.current",
+        "ai.weights"
+      ]
+    },
+    {
+      "id": "new_game",
+      "kind": "program",
+      "code": "\nfor (let r = 1; r <= 9; r++) for (let c = 1; c <= 9; c++)\n  await runtime.set('board.r' + r + 'c' + c, '');\nconst g = [];\nfor (let r = 0; r < 9; r++) { const row = []; for (let c = 0; c < 9; c++) row.push(''); g.push(row); }\nawait runtime.set('board.grid', g);\nawait runtime.set('turn.current', 'B');\nawait runtime.set('phase.current', 'play');\nawait runtime.set('winner.current', null);\nawait runtime.set('winner.line', null);\nawait runtime.set('flip.trace', []);\nfor (const n of ['R1','R2','R3','R4','R5']) await runtime.set('rule.' + n + '.verdict', null);\nawait runtime.set('rules.fired', []);\nawait runtime.set('rules.verdict', null);\nawait runtime.set('match.seq', 0);\nawait runtime.set('move.request', null);\nawait runtime.set('ai.move_log', []);\nconst log = (await runtime.get('log.events')).data;\nawait runtime.set('log.events', [...log.slice(-199), { ts: Date.now(), kind: 'new_game', text: 'board reset — BLACK to move' }]);\nreturn { ok: true };",
+      "description": "reset the board, keep the learning ledger",
+      "deps": [
+        "board.grid"
+      ]
+    },
+    {
+      "id": "log.events",
+      "kind": "value",
+      "value": [],
+      "description": "append-only audit (cap 200)"
+    }
+  ]
+}

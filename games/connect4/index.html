@@ -1,0 +1,4536 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quilt Arcade — Connect Four (gravity + threats as cells)</title>
+<style>
+  body { margin: 0; background: #e9e2d2; display: flex; flex-direction: column; align-items: center; padding: 26px 14px; }
+  #app { width: min(1180px, 100%); }
+  .qa-foot { text-align: center; color: #8a7f6a; font: 12px ui-monospace, Menlo, monospace; padding: 14px 0 4px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="qa-foot">quilt-arcade · every rule is a cell · every verdict is a cell write · every learned weight is a cell value</div>
+<script type="module">
+// download/quilt-arcade/engine/context.js
+function emptyContext() {
+  return {
+    trace: [],
+    timestamp: Date.now()
+  };
+}
+function extendContext(parent, childId, extra) {
+  return {
+    ...parent,
+    ...extra,
+    caller: childId,
+    trace: [...parent.trace ?? [], parent.caller ?? "<root>"],
+    timestamp: Date.now()
+  };
+}
+function contextKey(ctx) {
+  const parts = [];
+  if (ctx.row !== undefined)
+    parts.push(`r:${String(ctx.row)}`);
+  if (ctx.column !== undefined)
+    parts.push(`c:${String(ctx.column)}`);
+  if (ctx.caller)
+    parts.push(`f:${ctx.caller}`);
+  if (ctx.identity?.id)
+    parts.push(`i:${ctx.identity.id}`);
+  if (ctx.identity?.tags?.length)
+    parts.push(`t:${ctx.identity.tags.sort().join(",")}`);
+  return parts.join("|") || "<default>";
+}
+function evalWhen(when, ctx) {
+  try {
+    const caller = {
+      row: ctx.row,
+      column: ctx.column,
+      sheet: ctx.sheet,
+      identity: ctx.identity,
+      metadata: ctx.metadata
+    };
+    const expr = when.replace(/([\w.]+)\s+contains\s+"([^"]+)"/g, 'Array.isArray($1) && $1.includes("$2")');
+    const fn = new Function("caller", `return (${expr});`);
+    return Boolean(fn(caller));
+  } catch (err) {
+    if (process.env.QUILT_DEBUG) {
+      console.error(`[quilt] evalWhen failed: ${when}`, err);
+    }
+    return false;
+  }
+}
+function stableJson(v) {
+  if (v === null || typeof v !== "object")
+    return JSON.stringify(v) ?? "null";
+  if (Array.isArray(v))
+    return `[${v.map(stableJson).join(",")}]`;
+  const keys = Object.keys(v).sort();
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${stableJson(v[k])}`).join(",")}}`;
+}
+function callKey(ctx, input) {
+  const base = contextKey(ctx);
+  if (input === undefined)
+    return base;
+  return `${base}|in:${stableJson(input)}`;
+}
+
+// download/quilt-arcade/engine/cells/value.js
+function evaluateValue(cell, _ctx) {
+  return {
+    data: cell.def.value,
+    status: "ready",
+    computedAt: Date.now()
+  };
+}
+
+// download/quilt-arcade/engine/cells/formula.js
+function compile(expr, knownIds) {
+  let body = expr.startsWith("=") ? expr.slice(1) : expr;
+  const sortedIds = Array.from(knownIds).sort((a, b) => b.length - a.length);
+  for (const id of sortedIds) {
+    const safe = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`(?<![A-Za-z0-9_])${safe}(?![A-Za-z0-9_])`, "g");
+    body = body.replace(re, `cells[${JSON.stringify(id)}]`);
+  }
+  return new Function("cells", "abs", "min", "max", "clamp", "caller", `with (cells) { return (${body}); }`);
+}
+var helperAbs = (n) => Math.abs(n);
+var helperMin = (...n) => Math.min(...n);
+var helperMax = (...n) => Math.max(...n);
+var helperClamp = (n, lo, hi) => Math.min(Math.max(n, lo), hi);
+function evaluateFormula(cell, ctx, allCells) {
+  if (!cell.def.expr) {
+    return { data: undefined, status: "error", error: { message: "formula cell has no expr" } };
+  }
+  const key = contextKey(ctx);
+  const cached = cell.contextCache.get(key);
+  if (cached && cached.status === "ready" && !cell.value.error) {
+    return cached;
+  }
+  try {
+    const cellValues = {};
+    for (const [id, other] of allCells) {
+      cellValues[id] = other.value.data;
+    }
+    const cellProxy = new Proxy(cellValues, {
+      get(target, prop) {
+        if (typeof prop === "string" && prop in target) {
+          return target[prop];
+        }
+        return;
+      },
+      has(target, prop) {
+        if (typeof prop === "string")
+          return prop in target;
+        return false;
+      }
+    });
+    const fn = compile(cell.def.expr, allCells.keys());
+    const result = fn(cellProxy, helperAbs, helperMin, helperMax, helperClamp, ctx);
+    const value = {
+      data: result,
+      status: "ready",
+      computedAt: Date.now()
+    };
+    cell.contextCache.set(key, value);
+    cell.value = value;
+    return value;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (process.env.QUILT_DEBUG) {
+      console.error(`[quilt] formula ${cell.id} failed:`, err);
+    }
+    return { data: undefined, status: "error", error: { message } };
+  }
+}
+
+// download/quilt-arcade/engine/cells/api.js
+var defaultExecutor = {
+  fetch: (input, init) => globalThis.fetch(input, init)
+};
+async function evaluateApi(cell, ctx, input, executor = defaultExecutor) {
+  const startedAt = Date.now();
+  if (!cell.def.endpoint) {
+    return { data: undefined, status: "error", error: { message: "api cell has no endpoint" } };
+  }
+  try {
+    if (cell.def.endpoint.startsWith("model:")) {
+      return await callModel(cell, ctx, input, executor, startedAt);
+    }
+    if (cell.def.endpoint.startsWith("mcp://")) {
+      return await callMcpTool(cell, ctx, input, startedAt);
+    }
+    const url = substitute(cell.def.endpoint, ctx);
+    const method = cell.def.method ?? "GET";
+    const headers = cell.def.headers ?? { "Content-Type": "application/json" };
+    const init = { method, headers };
+    if (method !== "GET" && method !== "HEAD" && input !== undefined) {
+      init.body = typeof input === "string" ? input : JSON.stringify(input);
+    }
+    const response = await executor.fetch(url, init);
+    const duration = Date.now() - startedAt;
+    if (!response.ok) {
+      return {
+        data: undefined,
+        status: "error",
+        error: { message: `HTTP ${response.status} ${response.statusText}` }
+      };
+    }
+    const contentType = response.headers.get("content-type") ?? "";
+    const data = contentType.includes("application/json") ? await response.json() : await response.text();
+    return {
+      data,
+      status: "ready",
+      computedAt: Date.now(),
+      effects: [{ kind: "network", url, method }, { kind: "compute", ms: duration }]
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { data: undefined, status: "error", error: { message } };
+  }
+}
+async function callModel(cell, _ctx, _input, _executor, startedAt) {
+  return {
+    data: { model: cell.def.endpoint, note: "model calls not yet implemented" },
+    status: "ready",
+    computedAt: Date.now(),
+    effects: [{ kind: "model", provider: cell.def.endpoint ?? "" }, { kind: "compute", ms: Date.now() - startedAt }]
+  };
+}
+async function callMcpTool(cell, _ctx, _input, startedAt) {
+  return {
+    data: { tool: cell.def.endpoint, note: "MCP tool calls not yet implemented" },
+    status: "ready",
+    computedAt: Date.now(),
+    effects: [{ kind: "network", url: cell.def.endpoint ?? "", method: "MCP" }, { kind: "compute", ms: Date.now() - startedAt }]
+  };
+}
+function substitute(template, ctx) {
+  return template.replace(/\{\{([^}]+)\}\}/g, (_, path) => {
+    const parts = path.trim().split(".");
+    let value = ctx;
+    for (const p of parts) {
+      if (value && typeof value === "object" && p in value) {
+        value = value[p];
+      } else {
+        return "";
+      }
+    }
+    return String(value ?? "");
+  });
+}
+
+// download/quilt-arcade/engine/cells/program.js
+async function evaluateProgram(cell, ctx, input, runtime) {
+  if (!cell.def.code) {
+    return { data: undefined, status: "error", error: { message: "program cell has no code" } };
+  }
+  try {
+    const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
+    const fn = new AsyncFunction("input", "caller", "runtime", "clamp", "abs", "min", "max", cell.def.code);
+    const clamp = (n, lo, hi) => Math.min(Math.max(n, lo), hi);
+    const result = await fn(input, ctx, runtime, clamp, Math.abs, Math.min, Math.max);
+    return {
+      data: result,
+      status: "ready",
+      computedAt: Date.now()
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (process.env.QUILT_DEBUG) {
+      console.error(`[quilt] program cell ${cell.id} failed:`, err);
+    }
+    return { data: undefined, status: "error", error: { message } };
+  }
+}
+
+// download/quilt-arcade/engine/cells/router.js
+async function evaluateRouter(cell, ctx, input, runtime) {
+  if (!cell.def.rules?.length) {
+    return { data: undefined, status: "error", error: { message: "router cell has no rules" } };
+  }
+  for (const rule of cell.def.rules) {
+    if (evalWhen(rule.when, ctx)) {
+      if (typeof rule.route === "string") {
+        return await runtime.call(rule.route, input, ctx);
+      }
+      if (typeof rule.route === "object" && "cell" in rule.route) {
+        const result = await runtime.call(rule.route.cell, input, ctx);
+        if (rule.route.with && result.status === "ready" && result.data && typeof result.data === "object") {
+          return { ...result, data: { ...result.data, ...rule.route.with } };
+        }
+        return result;
+      }
+      if (typeof rule.route === "object" && "model" in rule.route) {
+        return {
+          data: { model: rule.route.model, input },
+          status: "ready",
+          computedAt: Date.now()
+        };
+      }
+      if (typeof rule.route === "object" && "value" in rule.route) {
+        return {
+          data: rule.route.value,
+          status: "ready",
+          computedAt: Date.now()
+        };
+      }
+    }
+  }
+  return {
+    data: undefined,
+    status: "ready",
+    computedAt: Date.now()
+  };
+}
+
+// download/quilt-arcade/engine/cells/listener.js
+var evtCounter = 0;
+async function fireListener(cell, changedCellId, newValue, prevValue, runtime) {
+  if (!cell.def.watch?.length)
+    return false;
+  if (!cell.def.watch.includes(changedCellId))
+    return false;
+  const ctx = emptyContext();
+  ctx.caller = cell.id;
+  ctx.metadata = { changed: changedCellId, prev: prevValue.data, current: newValue.data };
+  if (cell.def.condition && !evalWhen(cell.def.condition, ctx)) {
+    return false;
+  }
+  if (cell.def.action) {
+    evtCounter += 1;
+    const evtCtx = emptyContext();
+    evtCtx.caller = cell.id;
+    evtCtx.row = `evt-${Date.now()}-${evtCounter}`;
+    evtCtx.metadata = { changed: changedCellId, prev: prevValue.data, current: newValue.data };
+    await runtime.call(cell.def.action, { changed: changedCellId, value: newValue.data }, evtCtx);
+  }
+  return true;
+}
+
+// download/quilt-arcade/engine/cells/sensor.js
+function makeSensorValue(data) {
+  return {
+    data,
+    status: "ready",
+    computedAt: Date.now()
+  };
+}
+
+// download/quilt-arcade/engine/cells/io.js
+function makeIoValue(data) {
+  return {
+    data,
+    status: "ready",
+    computedAt: Date.now()
+  };
+}
+
+// download/quilt-arcade/engine/cells/ai.js
+async function evaluateAI(cell, _context, engine, resolveCellValue) {
+  const substitute2 = (s) => {
+    if (!resolveCellValue)
+      return s;
+    return s.replace(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g, (_match, id) => {
+      const v = resolveCellValue(id);
+      if (v === null || v === undefined)
+        return "";
+      if (typeof v === "string")
+        return v;
+      return JSON.stringify(v);
+    });
+  };
+  const config = {
+    id: cell.id,
+    kind: "ai",
+    ai_kind: cell.ai_kind,
+    provider: cell.provider,
+    model: cell.model
+  };
+  if (cell.prompt !== undefined)
+    config.prompt = substitute2(cell.prompt);
+  if (cell.input !== undefined) {
+    config.input = cell.input.startsWith("{{") ? substitute2(cell.input) : cell.input;
+  }
+  if (cell.image !== undefined)
+    config.image = substitute2(cell.image);
+  if (cell.target !== undefined)
+    config.target = cell.target;
+  if (cell.language !== undefined)
+    config.language = cell.language;
+  if (cell.max_words !== undefined)
+    config.max_words = cell.max_words;
+  if (cell.temperature !== undefined)
+    config.temperature = cell.temperature;
+  if (cell.max_tokens !== undefined)
+    config.max_tokens = cell.max_tokens;
+  if (cell.system !== undefined)
+    config.system = substitute2(cell.system);
+  const HANDLED = new Set([
+    "id",
+    "kind",
+    "ai_kind",
+    "provider",
+    "model",
+    "prompt",
+    "input",
+    "image",
+    "target",
+    "language",
+    "max_words",
+    "temperature",
+    "max_tokens",
+    "system",
+    "deps",
+    "watch",
+    "condition",
+    "action",
+    "code",
+    "value",
+    "default",
+    "description"
+  ]);
+  for (const [k, v] of Object.entries(cell)) {
+    if (HANDLED.has(k) || k in config)
+      continue;
+    const passthrough = v === null || typeof v === "number" || typeof v === "boolean" || typeof v === "string" && k !== "expr" || Array.isArray(v) && v.every((x) => typeof x !== "object" || x === null);
+    if (passthrough)
+      config[k] = v;
+  }
+  try {
+    const result = await engine.call(config, { useCache: true });
+    return { value: result, error: null };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    return { value: null, error: message };
+  }
+}
+
+// download/quilt-arcade/engine/engine.js
+var defaultOptions = {
+  maxConcurrency: 16,
+  tracing: false,
+  eager: false
+};
+
+class QuiltEngine {
+  id;
+  cells = new Map;
+  subscriptions = new Map;
+  inflight = new Map;
+  traces = [];
+  options;
+  subscriptionCounter = 0;
+  constructor(id = "default", options = {}) {
+    this.id = id;
+    const { ai, ...rest } = options;
+    this.options = { ...defaultOptions, ...rest, ai };
+  }
+  loadSheet(sheet) {
+    this.cells.clear();
+    this.inflight.clear();
+    this.traces = [];
+    for (const def of sheet.cells) {
+      this.defineCell(def);
+    }
+    for (const cell of this.cells.values()) {
+      if (cell.def.kind === "formula" || cell.def.kind === "ai") {
+        this.autoDetectDeps(cell);
+      }
+      if (cell.def.kind === "listener") {
+        for (const w of cell.def.watch ?? []) {
+          this.addDep(cell.id, w);
+        }
+      }
+      for (const dep of cell.def.deps ?? []) {
+        this.addDep(cell.id, dep);
+      }
+    }
+  }
+  defineCell(def) {
+    if (this.cells.has(def.id)) {
+      throw new Error(`cell already defined: ${def.id}`);
+    }
+    let initial = { data: undefined, status: "idle" };
+    if (def.value !== undefined) {
+      initial = { data: def.value, status: "ready", computedAt: Date.now() };
+    } else if (def.kind === "sensor" && def.default !== undefined) {
+      initial = { data: def.default, status: "ready", computedAt: Date.now() };
+    }
+    const cell = {
+      id: def.id,
+      def,
+      value: initial,
+      dependencies: new Set,
+      dependents: new Set,
+      contextCache: new Map
+    };
+    this.cells.set(def.id, cell);
+    return cell;
+  }
+  register(def) {
+    const cell = this.defineCell(def);
+    if (def.kind === "listener") {
+      for (const w of def.watch ?? []) {
+        this.addDep(def.id, w);
+      }
+    }
+    for (const dep of def.deps ?? []) {
+      this.addDep(def.id, dep);
+    }
+    return cell;
+  }
+  async get(id, ctx = emptyContext()) {
+    const cell = this.cells.get(id);
+    if (!cell) {
+      return { data: undefined, status: "error", error: { message: `no such cell: ${id}` } };
+    }
+    const fullCtx = extendContext(ctx, id);
+    switch (cell.def.kind) {
+      case "value":
+        return cell.value.status === "idle" ? evaluateValue(cell, fullCtx) : cell.value;
+      case "formula": {
+        await this.refreshDeps(cell, fullCtx);
+        return evaluateFormula(cell, fullCtx, this.cells);
+      }
+      case "api":
+      case "program":
+      case "router":
+      case "ai": {
+        if (!cell.def.memo) {
+          const value = await this.evaluateEffectful(cell, fullCtx, undefined);
+          return value;
+        }
+        const key = contextKey(fullCtx);
+        const cached = cell.contextCache.get(key);
+        if (cached && cached.status === "ready") {
+          return cached;
+        }
+        const value2 = await this.evaluateEffectful(cell, fullCtx, undefined);
+        cell.contextCache.set(key, value2);
+        return value2;
+      }
+      case "sensor":
+      case "io":
+      case "listener":
+        return cell.value;
+      default:
+        return { data: undefined, status: "error", error: { message: `unknown kind: ${cell.def.kind}` } };
+    }
+  }
+  async set(id, value, ctx = emptyContext()) {
+    const cell = this.cells.get(id);
+    if (!cell) {
+      throw new Error(`no such cell: ${id}`);
+    }
+    const fullCtx = extendContext(ctx, id);
+    const prev = cell.value;
+    const newValue = {
+      data: value,
+      status: "ready",
+      computedAt: Date.now()
+    };
+    cell.value = newValue;
+    cell.contextCache.clear();
+    await this.notify(id, newValue, prev);
+    await this.propagate(id, fullCtx, undefined, prev);
+  }
+  async call(id, input, ctx = emptyContext()) {
+    const cell = this.cells.get(id);
+    if (!cell) {
+      return { data: undefined, status: "error", error: { message: `no such cell: ${id}` } };
+    }
+    const fullCtx = extendContext(ctx, id);
+    if (cell.def.kind === "value" || cell.def.kind === "formula") {
+      return this.get(id, ctx);
+    }
+    if (cell.def.kind === "sensor" || cell.def.kind === "io" || cell.def.kind === "listener") {
+      return cell.value;
+    }
+    const key = callKey(fullCtx, input);
+    if (cell.def.memo) {
+      const cached = cell.contextCache.get(key);
+      if (cached && cached.status === "ready") {
+        return cached;
+      }
+    }
+    const inflightKey = `${id}|${key}`;
+    if (this.inflight.has(inflightKey)) {
+      return this.inflight.get(inflightKey);
+    }
+    const promise = this.evaluateEffectful(cell, fullCtx, input);
+    this.inflight.set(inflightKey, promise);
+    try {
+      const value = await promise;
+      if (cell.def.memo)
+        cell.contextCache.set(key, value);
+      return value;
+    } finally {
+      this.inflight.delete(inflightKey);
+    }
+  }
+  async push(id, data, ctx = emptyContext()) {
+    const cell = this.cells.get(id);
+    if (!cell)
+      throw new Error(`no such cell: ${id}`);
+    if (cell.def.kind !== "sensor" && cell.def.kind !== "io") {
+      throw new Error(`cannot push to ${cell.def.kind} cell: ${id}`);
+    }
+    const newValue = cell.def.kind === "sensor" ? makeSensorValue(data) : makeIoValue(data);
+    const prev = cell.value;
+    cell.value = newValue;
+    await this.notify(id, newValue, prev);
+    await this.propagate(id, extendContext(ctx, id), undefined, prev);
+  }
+  subscribe(cellId, callback, filter) {
+    const id = `sub-${++this.subscriptionCounter}`;
+    this.subscriptions.set(id, { id, cellId, callback, filter });
+    return id;
+  }
+  unsubscribe(subscriptionId) {
+    this.subscriptions.delete(subscriptionId);
+  }
+  getCell(id) {
+    return this.cells.get(id);
+  }
+  listCells(kind) {
+    const all = Array.from(this.cells.values());
+    return kind ? all.filter((c) => c.def.kind === kind) : all;
+  }
+  getTraces(limit = 100) {
+    return this.traces.slice(-limit);
+  }
+  exportDefs() {
+    return Array.from(this.cells.values()).map((c) => c.def);
+  }
+  async evaluateEffectful(cell, ctx, input) {
+    const startedAt = Date.now();
+    let result;
+    if (cell.def.kind === "api") {
+      result = await evaluateApi(cell, ctx, input);
+    } else if (cell.def.kind === "program") {
+      const boundRuntime = {
+        get: (id) => this.get(id, ctx),
+        set: (id, value) => this.set(id, value, ctx),
+        call: (id, i, c) => this.call(id, i, c ?? ctx)
+      };
+      result = await evaluateProgram(cell, ctx, input, boundRuntime);
+    } else if (cell.def.kind === "router") {
+      result = await evaluateRouter(cell, ctx, input, this);
+    } else if (cell.def.kind === "ai") {
+      if (!this.options.ai) {
+        result = { data: null, status: "error", error: { message: "AI cell evaluated but no AI engine configured. Pass an `ai` engine to the QuiltEngine constructor." } };
+      } else {
+        const resolved = new Set;
+        const resolver = (id) => {
+          if (resolved.has(id))
+            return null;
+          resolved.add(id);
+          const c = this.cells.get(id);
+          if (!c)
+            return null;
+          if (c.value.status === "ready")
+            return c.value.data;
+          if (c.value.status === "computing") {
+            if (c.def.kind === "value") {
+              c.value = evaluateValue(c, ctx);
+              return c.value.data;
+            }
+            return null;
+          }
+          if (c.value.status === "error")
+            return null;
+          return c.value.data;
+        };
+        const aiResult = await evaluateAI(cell.def, ctx, this.options.ai, resolver);
+        result = {
+          data: aiResult.value,
+          status: aiResult.error ? "error" : "ready",
+          error: aiResult.error ? { message: aiResult.error } : undefined,
+          effects: [{ kind: "model", provider: cell.def.provider || "unknown" }],
+          computedAt: Date.now()
+        };
+      }
+    } else {
+      result = { data: undefined, status: "error", error: { message: `not effectful: ${cell.def.kind}` } };
+    }
+    if (this.options.tracing) {
+      this.traces.push({
+        cellId: cell.id,
+        startedAt,
+        completedAt: Date.now(),
+        durationMs: Date.now() - startedAt,
+        context: ctx,
+        effects: result.effects,
+        error: result.error
+      });
+    }
+    const prev = cell.value;
+    cell.value = result;
+    await this.notify(cell.id, result, prev);
+    return result;
+  }
+  async refreshDeps(cell, ctx) {
+    for (const depId of cell.dependencies) {
+      const dep = this.cells.get(depId);
+      if (!dep)
+        continue;
+      if (dep.def.kind === "value" && dep.value.status !== "ready") {
+        dep.value = evaluateValue(dep, ctx);
+      } else if (dep.def.kind === "formula" && dep.value.status !== "ready") {
+        await this.refreshDeps(dep, ctx);
+        const v = evaluateFormula(dep, ctx, this.cells);
+        dep.value = v;
+        dep.contextCache.set(contextKey(ctx), v);
+      }
+    }
+  }
+  async propagate(changedId, ctx, visited, changedPrev) {
+    const cell = this.cells.get(changedId);
+    if (!cell)
+      return;
+    const seen = visited ?? new Set;
+    if (seen.has(changedId))
+      return;
+    seen.add(changedId);
+    let current = cell.value;
+    let prev = changedPrev ?? current;
+    if (this.options.eager && cell.def.kind === "formula" && (cell.value.status === "stale" || cell.value.status === "idle")) {
+      prev = cell.value;
+      await this.refreshDeps(cell, ctx);
+      current = evaluateFormula(cell, ctx, this.cells);
+      cell.value = current;
+      await this.notify(cell.id, current, prev);
+    }
+    for (const depId of cell.dependents) {
+      const dep = this.cells.get(depId);
+      if (!dep || seen.has(depId))
+        continue;
+      if (dep.def.kind === "formula" || dep.def.kind === "value" || dep.def.kind === "ai" || dep.def.kind === "program" || dep.def.kind === "router") {
+        dep.value = { ...dep.value, status: "stale" };
+        dep.contextCache.clear();
+      }
+      await this.propagate(depId, ctx, seen);
+    }
+    for (const depId of cell.dependents) {
+      const dep = this.cells.get(depId);
+      if (!dep || dep.def.kind !== "listener")
+        continue;
+      await fireListener(dep, changedId, current, prev, this);
+    }
+  }
+  async notify(id, value, prev) {
+    for (const sub of this.subscriptions.values()) {
+      if (sub.cellId !== id)
+        continue;
+      if (sub.filter && !sub.filter(value, prev))
+        continue;
+      try {
+        await sub.callback(value, prev);
+      } catch (err) {
+        if (process.env.QUILT_DEBUG) {
+          console.error(`[quilt] subscription error for ${id}:`, err);
+        }
+      }
+    }
+  }
+  addDep(from, to) {
+    const fromCell = this.cells.get(from);
+    const toCell = this.cells.get(to);
+    if (!fromCell || !toCell)
+      return;
+    fromCell.dependencies.add(to);
+    toCell.dependents.add(from);
+  }
+  autoDetectDeps(cell) {
+    const fields = [];
+    if (cell.def.expr)
+      fields.push(cell.def.expr);
+    if (cell.def.kind === "ai") {
+      const ai = cell.def;
+      if (ai.prompt)
+        fields.push(ai.prompt);
+      if (ai.input)
+        fields.push(ai.input);
+      if (ai.image)
+        fields.push(ai.image);
+    }
+    if (fields.length === 0)
+      return;
+    const text = fields.join(" ");
+    const knownIds = new Set(this.cells.keys());
+    for (const id of knownIds) {
+      if (id === cell.id)
+        continue;
+      const reTemplate = new RegExp(`\\{\\{\\s*${escapeRegex(id)}\\s*\\}\\}`);
+      const reToken = new RegExp(`\\b${escapeRegex(id)}\\b`);
+      if (reTemplate.test(text) || reToken.test(text)) {
+        this.addDep(cell.id, id);
+      }
+    }
+  }
+}
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+// download/quilt-arcade/node_modules/yaml/browser/dist/nodes/identity.js
+var ALIAS = Symbol.for("yaml.alias");
+var DOC = Symbol.for("yaml.document");
+var MAP = Symbol.for("yaml.map");
+var PAIR = Symbol.for("yaml.pair");
+var SCALAR = Symbol.for("yaml.scalar");
+var SEQ = Symbol.for("yaml.seq");
+var NODE_TYPE = Symbol.for("yaml.node.type");
+var isAlias = (node) => !!node && typeof node === "object" && node[NODE_TYPE] === ALIAS;
+var isDocument = (node) => !!node && typeof node === "object" && node[NODE_TYPE] === DOC;
+var isMap = (node) => !!node && typeof node === "object" && node[NODE_TYPE] === MAP;
+var isPair = (node) => !!node && typeof node === "object" && node[NODE_TYPE] === PAIR;
+var isScalar = (node) => !!node && typeof node === "object" && node[NODE_TYPE] === SCALAR;
+var isSeq = (node) => !!node && typeof node === "object" && node[NODE_TYPE] === SEQ;
+function isCollection(node) {
+  if (node && typeof node === "object")
+    switch (node[NODE_TYPE]) {
+      case MAP:
+      case SEQ:
+        return true;
+    }
+  return false;
+}
+function isNode(node) {
+  if (node && typeof node === "object")
+    switch (node[NODE_TYPE]) {
+      case ALIAS:
+      case MAP:
+      case SCALAR:
+      case SEQ:
+        return true;
+    }
+  return false;
+}
+var hasAnchor = (node) => (isScalar(node) || isCollection(node)) && !!node.anchor;
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/visit.js
+var BREAK = Symbol("break visit");
+var SKIP = Symbol("skip children");
+var REMOVE = Symbol("remove node");
+function visit(node, visitor) {
+  const visitor_ = initVisitor(visitor);
+  if (isDocument(node)) {
+    const cd = visit_(null, node.contents, visitor_, Object.freeze([node]));
+    if (cd === REMOVE)
+      node.contents = null;
+  } else
+    visit_(null, node, visitor_, Object.freeze([]));
+}
+visit.BREAK = BREAK;
+visit.SKIP = SKIP;
+visit.REMOVE = REMOVE;
+function visit_(key, node, visitor, path) {
+  const ctrl = callVisitor(key, node, visitor, path);
+  if (isNode(ctrl) || isPair(ctrl)) {
+    replaceNode(key, path, ctrl);
+    return visit_(key, ctrl, visitor, path);
+  }
+  if (typeof ctrl !== "symbol") {
+    if (isCollection(node)) {
+      path = Object.freeze(path.concat(node));
+      for (let i = 0;i < node.items.length; ++i) {
+        const ci = visit_(i, node.items[i], visitor, path);
+        if (typeof ci === "number")
+          i = ci - 1;
+        else if (ci === BREAK)
+          return BREAK;
+        else if (ci === REMOVE) {
+          node.items.splice(i, 1);
+          i -= 1;
+        }
+      }
+    } else if (isPair(node)) {
+      path = Object.freeze(path.concat(node));
+      const ck = visit_("key", node.key, visitor, path);
+      if (ck === BREAK)
+        return BREAK;
+      else if (ck === REMOVE)
+        node.key = null;
+      const cv = visit_("value", node.value, visitor, path);
+      if (cv === BREAK)
+        return BREAK;
+      else if (cv === REMOVE)
+        node.value = null;
+    }
+  }
+  return ctrl;
+}
+async function visitAsync(node, visitor) {
+  const visitor_ = initVisitor(visitor);
+  if (isDocument(node)) {
+    const cd = await visitAsync_(null, node.contents, visitor_, Object.freeze([node]));
+    if (cd === REMOVE)
+      node.contents = null;
+  } else
+    await visitAsync_(null, node, visitor_, Object.freeze([]));
+}
+visitAsync.BREAK = BREAK;
+visitAsync.SKIP = SKIP;
+visitAsync.REMOVE = REMOVE;
+async function visitAsync_(key, node, visitor, path) {
+  const ctrl = await callVisitor(key, node, visitor, path);
+  if (isNode(ctrl) || isPair(ctrl)) {
+    replaceNode(key, path, ctrl);
+    return visitAsync_(key, ctrl, visitor, path);
+  }
+  if (typeof ctrl !== "symbol") {
+    if (isCollection(node)) {
+      path = Object.freeze(path.concat(node));
+      for (let i = 0;i < node.items.length; ++i) {
+        const ci = await visitAsync_(i, node.items[i], visitor, path);
+        if (typeof ci === "number")
+          i = ci - 1;
+        else if (ci === BREAK)
+          return BREAK;
+        else if (ci === REMOVE) {
+          node.items.splice(i, 1);
+          i -= 1;
+        }
+      }
+    } else if (isPair(node)) {
+      path = Object.freeze(path.concat(node));
+      const ck = await visitAsync_("key", node.key, visitor, path);
+      if (ck === BREAK)
+        return BREAK;
+      else if (ck === REMOVE)
+        node.key = null;
+      const cv = await visitAsync_("value", node.value, visitor, path);
+      if (cv === BREAK)
+        return BREAK;
+      else if (cv === REMOVE)
+        node.value = null;
+    }
+  }
+  return ctrl;
+}
+function initVisitor(visitor) {
+  if (typeof visitor === "object" && (visitor.Collection || visitor.Node || visitor.Value)) {
+    return Object.assign({
+      Alias: visitor.Node,
+      Map: visitor.Node,
+      Scalar: visitor.Node,
+      Seq: visitor.Node
+    }, visitor.Value && {
+      Map: visitor.Value,
+      Scalar: visitor.Value,
+      Seq: visitor.Value
+    }, visitor.Collection && {
+      Map: visitor.Collection,
+      Seq: visitor.Collection
+    }, visitor);
+  }
+  return visitor;
+}
+function callVisitor(key, node, visitor, path) {
+  if (typeof visitor === "function")
+    return visitor(key, node, path);
+  if (isMap(node))
+    return visitor.Map?.(key, node, path);
+  if (isSeq(node))
+    return visitor.Seq?.(key, node, path);
+  if (isPair(node))
+    return visitor.Pair?.(key, node, path);
+  if (isScalar(node))
+    return visitor.Scalar?.(key, node, path);
+  if (isAlias(node))
+    return visitor.Alias?.(key, node, path);
+  return;
+}
+function replaceNode(key, path, node) {
+  const parent = path[path.length - 1];
+  if (isCollection(parent)) {
+    parent.items[key] = node;
+  } else if (isPair(parent)) {
+    if (key === "key")
+      parent.key = node;
+    else
+      parent.value = node;
+  } else if (isDocument(parent)) {
+    parent.contents = node;
+  } else {
+    const pt = isAlias(parent) ? "alias" : "scalar";
+    throw new Error(`Cannot replace node with ${pt} parent`);
+  }
+}
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/doc/directives.js
+var escapeChars = {
+  "!": "%21",
+  ",": "%2C",
+  "[": "%5B",
+  "]": "%5D",
+  "{": "%7B",
+  "}": "%7D"
+};
+var escapeTagName = (tn) => tn.replace(/[!,[\]{}]/g, (ch) => escapeChars[ch]);
+
+class Directives {
+  constructor(yaml, tags) {
+    this.docStart = null;
+    this.docEnd = false;
+    this.yaml = Object.assign({}, Directives.defaultYaml, yaml);
+    this.tags = Object.assign({}, Directives.defaultTags, tags);
+  }
+  clone() {
+    const copy = new Directives(this.yaml, this.tags);
+    copy.docStart = this.docStart;
+    return copy;
+  }
+  atDocument() {
+    const res = new Directives(this.yaml, this.tags);
+    switch (this.yaml.version) {
+      case "1.1":
+        this.atNextDocument = true;
+        break;
+      case "1.2":
+        this.atNextDocument = false;
+        this.yaml = {
+          explicit: Directives.defaultYaml.explicit,
+          version: "1.2"
+        };
+        this.tags = Object.assign({}, Directives.defaultTags);
+        break;
+    }
+    return res;
+  }
+  add(line, onError) {
+    if (this.atNextDocument) {
+      this.yaml = { explicit: Directives.defaultYaml.explicit, version: "1.1" };
+      this.tags = Object.assign({}, Directives.defaultTags);
+      this.atNextDocument = false;
+    }
+    const parts = line.trim().split(/[ \t]+/);
+    const name = parts.shift();
+    switch (name) {
+      case "%TAG": {
+        if (parts.length !== 2) {
+          onError(0, "%TAG directive should contain exactly two parts");
+          if (parts.length < 2)
+            return false;
+        }
+        const [handle, prefix] = parts;
+        this.tags[handle] = prefix;
+        return true;
+      }
+      case "%YAML": {
+        this.yaml.explicit = true;
+        if (parts.length !== 1) {
+          onError(0, "%YAML directive should contain exactly one part");
+          return false;
+        }
+        const [version] = parts;
+        if (version === "1.1" || version === "1.2") {
+          this.yaml.version = version;
+          return true;
+        } else {
+          const isValid = /^\d+\.\d+$/.test(version);
+          onError(6, `Unsupported YAML version ${version}`, isValid);
+          return false;
+        }
+      }
+      default:
+        onError(0, `Unknown directive ${name}`, true);
+        return false;
+    }
+  }
+  tagName(source, onError) {
+    if (source === "!")
+      return "!";
+    if (source[0] !== "!") {
+      onError(`Not a valid tag: ${source}`);
+      return null;
+    }
+    if (source[1] === "<") {
+      const verbatim = source.slice(2, -1);
+      if (verbatim === "!" || verbatim === "!!") {
+        onError(`Verbatim tags aren't resolved, so ${source} is invalid.`);
+        return null;
+      }
+      if (source[source.length - 1] !== ">")
+        onError("Verbatim tags must end with a >");
+      return verbatim;
+    }
+    const [, handle, suffix] = source.match(/^(.*!)([^!]*)$/s);
+    if (!suffix)
+      onError(`The ${source} tag has no suffix`);
+    const prefix = this.tags[handle];
+    if (prefix) {
+      try {
+        return prefix + decodeURIComponent(suffix);
+      } catch (error) {
+        onError(String(error));
+        return null;
+      }
+    }
+    if (handle === "!")
+      return source;
+    onError(`Could not resolve tag: ${source}`);
+    return null;
+  }
+  tagString(tag) {
+    for (const [handle, prefix] of Object.entries(this.tags)) {
+      if (tag.startsWith(prefix))
+        return handle + escapeTagName(tag.substring(prefix.length));
+    }
+    return tag[0] === "!" ? tag : `!<${tag}>`;
+  }
+  toString(doc) {
+    const lines = this.yaml.explicit ? [`%YAML ${this.yaml.version || "1.2"}`] : [];
+    const tagEntries = Object.entries(this.tags);
+    let tagNames;
+    if (doc && tagEntries.length > 0 && isNode(doc.contents)) {
+      const tags = {};
+      visit(doc.contents, (_key, node) => {
+        if (isNode(node) && node.tag)
+          tags[node.tag] = true;
+      });
+      tagNames = Object.keys(tags);
+    } else
+      tagNames = [];
+    for (const [handle, prefix] of tagEntries) {
+      if (handle === "!!" && prefix === "tag:yaml.org,2002:")
+        continue;
+      if (!doc || tagNames.some((tn) => tn.startsWith(prefix)))
+        lines.push(`%TAG ${handle} ${prefix}`);
+    }
+    return lines.join(`
+`);
+  }
+}
+Directives.defaultYaml = { explicit: false, version: "1.2" };
+Directives.defaultTags = { "!!": "tag:yaml.org,2002:" };
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/doc/anchors.js
+function anchorIsValid(anchor) {
+  if (/[\x00-\x19\s,[\]{}]/.test(anchor)) {
+    const sa = JSON.stringify(anchor);
+    const msg = `Anchor must not contain whitespace or control characters: ${sa}`;
+    throw new Error(msg);
+  }
+  return true;
+}
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/doc/applyReviver.js
+function applyReviver(reviver, obj, key, val) {
+  if (val && typeof val === "object") {
+    if (Array.isArray(val)) {
+      for (let i = 0, len = val.length;i < len; ++i) {
+        const v0 = val[i];
+        const v1 = applyReviver(reviver, val, String(i), v0);
+        if (v1 === undefined)
+          delete val[i];
+        else if (v1 !== v0)
+          val[i] = v1;
+      }
+    } else if (val instanceof Map) {
+      for (const k of Array.from(val.keys())) {
+        const v0 = val.get(k);
+        const v1 = applyReviver(reviver, val, k, v0);
+        if (v1 === undefined)
+          val.delete(k);
+        else if (v1 !== v0)
+          val.set(k, v1);
+      }
+    } else if (val instanceof Set) {
+      for (const v0 of Array.from(val)) {
+        const v1 = applyReviver(reviver, val, v0, v0);
+        if (v1 === undefined)
+          val.delete(v0);
+        else if (v1 !== v0) {
+          val.delete(v0);
+          val.add(v1);
+        }
+      }
+    } else {
+      for (const [k, v0] of Object.entries(val)) {
+        const v1 = applyReviver(reviver, val, k, v0);
+        if (v1 === undefined)
+          delete val[k];
+        else if (v1 !== v0)
+          val[k] = v1;
+      }
+    }
+  }
+  return reviver.call(obj, key, val);
+}
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/nodes/toJS.js
+function toJS(value, arg, ctx) {
+  if (Array.isArray(value))
+    return value.map((v, i) => toJS(v, String(i), ctx));
+  if (value && typeof value.toJSON === "function") {
+    if (!ctx || !hasAnchor(value))
+      return value.toJSON(arg, ctx);
+    const data = { aliasCount: 0, count: 1, res: undefined };
+    ctx.anchors.set(value, data);
+    ctx.onCreate = (res2) => {
+      data.res = res2;
+      delete ctx.onCreate;
+    };
+    const res = value.toJSON(arg, ctx);
+    if (ctx.onCreate)
+      ctx.onCreate(res);
+    return res;
+  }
+  if (typeof value === "bigint" && !ctx?.keep)
+    return Number(value);
+  return value;
+}
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/nodes/Node.js
+class NodeBase {
+  constructor(type) {
+    Object.defineProperty(this, NODE_TYPE, { value: type });
+  }
+  clone() {
+    const copy = Object.create(Object.getPrototypeOf(this), Object.getOwnPropertyDescriptors(this));
+    if (this.range)
+      copy.range = this.range.slice();
+    return copy;
+  }
+  toJS(doc, { mapAsMap, maxAliasCount, onAnchor, reviver } = {}) {
+    if (!isDocument(doc))
+      throw new TypeError("A document argument is required");
+    const ctx = {
+      anchors: new Map,
+      doc,
+      keep: true,
+      mapAsMap: mapAsMap === true,
+      mapKeyWarned: false,
+      maxAliasCount: typeof maxAliasCount === "number" ? maxAliasCount : 100
+    };
+    const res = toJS(this, "", ctx);
+    if (typeof onAnchor === "function")
+      for (const { count, res: res2 } of ctx.anchors.values())
+        onAnchor(res2, count);
+    return typeof reviver === "function" ? applyReviver(reviver, { "": res }, "", res) : res;
+  }
+}
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/nodes/Alias.js
+class Alias extends NodeBase {
+  constructor(source) {
+    super(ALIAS);
+    this.source = source;
+    Object.defineProperty(this, "tag", {
+      set() {
+        throw new Error("Alias nodes cannot have tags");
+      }
+    });
+  }
+  resolve(doc, ctx) {
+    if (ctx?.maxAliasCount === 0)
+      throw new ReferenceError("Alias resolution is disabled");
+    let nodes;
+    if (ctx?.aliasResolveCache) {
+      nodes = ctx.aliasResolveCache;
+    } else {
+      nodes = [];
+      visit(doc, {
+        Node: (_key, node) => {
+          if (isAlias(node) || hasAnchor(node))
+            nodes.push(node);
+        }
+      });
+      if (ctx)
+        ctx.aliasResolveCache = nodes;
+    }
+    let found = undefined;
+    for (const node of nodes) {
+      if (node === this)
+        break;
+      if (node.anchor === this.source)
+        found = node;
+    }
+    if (found && ctx) {
+      const { anchors, doc: doc2, maxAliasCount } = ctx;
+      let data = anchors.get(found);
+      if (!data) {
+        toJS(found, null, ctx);
+        data = anchors.get(found);
+      }
+      if (data?.res === undefined) {
+        const msg = "This should not happen: Alias anchor was not resolved?";
+        throw new ReferenceError(msg);
+      }
+      if (maxAliasCount >= 0) {
+        data.count += 1;
+        if (data.aliasCount === 0)
+          data.aliasCount = getAliasCount(doc2, found, anchors);
+        if (data.count * data.aliasCount > maxAliasCount) {
+          const msg = "Excessive alias count indicates a resource exhaustion attack";
+          throw new ReferenceError(msg);
+        }
+      }
+    }
+    return found;
+  }
+  toJSON(_arg, ctx) {
+    if (!ctx)
+      return { source: this.source };
+    const source = this.resolve(ctx.doc, ctx);
+    if (!source) {
+      const msg = `Unresolved alias (the anchor must be set before the alias): ${this.source}`;
+      throw new ReferenceError(msg);
+    }
+    return ctx.anchors.get(source).res;
+  }
+  toString(ctx, _onComment, _onChompKeep) {
+    const src = `*${this.source}`;
+    if (ctx) {
+      anchorIsValid(this.source);
+      if (ctx.options.verifyAliasOrder && !ctx.anchors.has(this.source)) {
+        const msg = `Unresolved alias (the anchor must be set before the alias): ${this.source}`;
+        throw new Error(msg);
+      }
+      if (ctx.implicitKey)
+        return `${src} `;
+    }
+    return src;
+  }
+}
+function getAliasCount(doc, node, anchors) {
+  if (isAlias(node)) {
+    const source = node.resolve(doc);
+    const anchor = anchors && source && anchors.get(source);
+    return anchor ? anchor.count * anchor.aliasCount : 0;
+  } else if (isCollection(node)) {
+    let count = 0;
+    for (const item of node.items) {
+      const c = getAliasCount(doc, item, anchors);
+      if (c > count)
+        count = c;
+    }
+    return count;
+  } else if (isPair(node)) {
+    const kc = getAliasCount(doc, node.key, anchors);
+    const vc = getAliasCount(doc, node.value, anchors);
+    return Math.max(kc, vc);
+  }
+  return 1;
+}
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/nodes/Scalar.js
+var isScalarValue = (value) => !value || typeof value !== "function" && typeof value !== "object";
+
+class Scalar extends NodeBase {
+  constructor(value) {
+    super(SCALAR);
+    this.value = value;
+  }
+  toJSON(arg, ctx) {
+    return ctx?.keep ? this.value : toJS(this.value, arg, ctx);
+  }
+  toString() {
+    return String(this.value);
+  }
+}
+Scalar.BLOCK_FOLDED = "BLOCK_FOLDED";
+Scalar.BLOCK_LITERAL = "BLOCK_LITERAL";
+Scalar.PLAIN = "PLAIN";
+Scalar.QUOTE_DOUBLE = "QUOTE_DOUBLE";
+Scalar.QUOTE_SINGLE = "QUOTE_SINGLE";
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/doc/createNode.js
+var defaultTagPrefix = "tag:yaml.org,2002:";
+function findTagObject(value, tagName, tags) {
+  if (tagName) {
+    const match = tags.filter((t) => t.tag === tagName);
+    const tagObj = match.find((t) => !t.format) ?? match[0];
+    if (!tagObj)
+      throw new Error(`Tag ${tagName} not found`);
+    return tagObj;
+  }
+  return tags.find((t) => t.identify?.(value) && !t.format);
+}
+function createNode(value, tagName, ctx) {
+  if (isDocument(value))
+    value = value.contents;
+  if (isNode(value))
+    return value;
+  if (isPair(value)) {
+    const map = ctx.schema[MAP].createNode?.(ctx.schema, null, ctx);
+    map.items.push(value);
+    return map;
+  }
+  if (value instanceof String || value instanceof Number || value instanceof Boolean || typeof BigInt !== "undefined" && value instanceof BigInt) {
+    value = value.valueOf();
+  }
+  const { aliasDuplicateObjects, onAnchor, onTagObj, schema, sourceObjects } = ctx;
+  let ref = undefined;
+  if (aliasDuplicateObjects && value && typeof value === "object") {
+    ref = sourceObjects.get(value);
+    if (ref) {
+      ref.anchor ?? (ref.anchor = onAnchor(value));
+      return new Alias(ref.anchor);
+    } else {
+      ref = { anchor: null, node: null };
+      sourceObjects.set(value, ref);
+    }
+  }
+  if (tagName?.startsWith("!!"))
+    tagName = defaultTagPrefix + tagName.slice(2);
+  let tagObj = findTagObject(value, tagName, schema.tags);
+  if (!tagObj) {
+    if (value && typeof value.toJSON === "function") {
+      value = value.toJSON();
+    }
+    if (!value || typeof value !== "object") {
+      const node2 = new Scalar(value);
+      if (ref)
+        ref.node = node2;
+      return node2;
+    }
+    tagObj = value instanceof Map ? schema[MAP] : (Symbol.iterator in Object(value)) ? schema[SEQ] : schema[MAP];
+  }
+  if (onTagObj) {
+    onTagObj(tagObj);
+    delete ctx.onTagObj;
+  }
+  const node = tagObj?.createNode ? tagObj.createNode(ctx.schema, value, ctx) : typeof tagObj?.nodeClass?.from === "function" ? tagObj.nodeClass.from(ctx.schema, value, ctx) : new Scalar(value);
+  if (tagName)
+    node.tag = tagName;
+  else if (!tagObj.default)
+    node.tag = tagObj.tag;
+  if (ref)
+    ref.node = node;
+  return node;
+}
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/nodes/Collection.js
+function collectionFromPath(schema, path, value) {
+  let v = value;
+  for (let i = path.length - 1;i >= 0; --i) {
+    const k = path[i];
+    if (typeof k === "number" && Number.isInteger(k) && k >= 0) {
+      const a = [];
+      a[k] = v;
+      v = a;
+    } else {
+      v = new Map([[k, v]]);
+    }
+  }
+  return createNode(v, undefined, {
+    aliasDuplicateObjects: false,
+    keepUndefined: false,
+    onAnchor: () => {
+      throw new Error("This should not happen, please report a bug.");
+    },
+    schema,
+    sourceObjects: new Map
+  });
+}
+var isEmptyPath = (path) => path == null || typeof path === "object" && !!path[Symbol.iterator]().next().done;
+
+class Collection extends NodeBase {
+  constructor(type, schema) {
+    super(type);
+    Object.defineProperty(this, "schema", {
+      value: schema,
+      configurable: true,
+      enumerable: false,
+      writable: true
+    });
+  }
+  clone(schema) {
+    const copy = Object.create(Object.getPrototypeOf(this), Object.getOwnPropertyDescriptors(this));
+    if (schema)
+      copy.schema = schema;
+    copy.items = copy.items.map((it) => isNode(it) || isPair(it) ? it.clone(schema) : it);
+    if (this.range)
+      copy.range = this.range.slice();
+    return copy;
+  }
+  addIn(path, value) {
+    if (isEmptyPath(path))
+      this.add(value);
+    else {
+      const [key, ...rest] = path;
+      const node = this.get(key, true);
+      if (isCollection(node))
+        node.addIn(rest, value);
+      else if (node === undefined && this.schema)
+        this.set(key, collectionFromPath(this.schema, rest, value));
+      else
+        throw new Error(`Expected YAML collection at ${key}. Remaining path: ${rest}`);
+    }
+  }
+  deleteIn(path) {
+    const [key, ...rest] = path;
+    if (rest.length === 0)
+      return this.delete(key);
+    const node = this.get(key, true);
+    if (isCollection(node))
+      return node.deleteIn(rest);
+    else
+      throw new Error(`Expected YAML collection at ${key}. Remaining path: ${rest}`);
+  }
+  getIn(path, keepScalar) {
+    const [key, ...rest] = path;
+    const node = this.get(key, true);
+    if (rest.length === 0)
+      return !keepScalar && isScalar(node) ? node.value : node;
+    else
+      return isCollection(node) ? node.getIn(rest, keepScalar) : undefined;
+  }
+  hasAllNullValues(allowScalar) {
+    return this.items.every((node) => {
+      if (!isPair(node))
+        return false;
+      const n = node.value;
+      return n == null || allowScalar && isScalar(n) && n.value == null && !n.commentBefore && !n.comment && !n.tag;
+    });
+  }
+  hasIn(path) {
+    const [key, ...rest] = path;
+    if (rest.length === 0)
+      return this.has(key);
+    const node = this.get(key, true);
+    return isCollection(node) ? node.hasIn(rest) : false;
+  }
+  setIn(path, value) {
+    const [key, ...rest] = path;
+    if (rest.length === 0) {
+      this.set(key, value);
+    } else {
+      const node = this.get(key, true);
+      if (isCollection(node))
+        node.setIn(rest, value);
+      else if (node === undefined && this.schema)
+        this.set(key, collectionFromPath(this.schema, rest, value));
+      else
+        throw new Error(`Expected YAML collection at ${key}. Remaining path: ${rest}`);
+    }
+  }
+}
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/stringify/stringifyComment.js
+var stringifyComment = (str) => str.replace(/^(?!$)(?: $)?/gm, "#");
+function indentComment(comment, indent) {
+  if (/^\n+$/.test(comment))
+    return comment.substring(1);
+  return indent ? comment.replace(/^(?! *$)/gm, indent) : comment;
+}
+var lineComment = (str, indent, comment) => str.endsWith(`
+`) ? indentComment(comment, indent) : comment.includes(`
+`) ? `
+` + indentComment(comment, indent) : (str.endsWith(" ") ? "" : " ") + comment;
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/stringify/foldFlowLines.js
+var FOLD_FLOW = "flow";
+var FOLD_BLOCK = "block";
+var FOLD_QUOTED = "quoted";
+function foldFlowLines(text, indent, mode = "flow", { indentAtStart, lineWidth = 80, minContentWidth = 20, onFold, onOverflow } = {}) {
+  if (!lineWidth || lineWidth < 0)
+    return text;
+  if (lineWidth < minContentWidth)
+    minContentWidth = 0;
+  const endStep = Math.max(1 + minContentWidth, 1 + lineWidth - indent.length);
+  if (text.length <= endStep)
+    return text;
+  const folds = [];
+  const escapedFolds = {};
+  let end = lineWidth - indent.length;
+  if (typeof indentAtStart === "number") {
+    if (indentAtStart > lineWidth - Math.max(2, minContentWidth))
+      folds.push(0);
+    else
+      end = lineWidth - indentAtStart;
+  }
+  let split = undefined;
+  let prev = undefined;
+  let overflow = false;
+  let i = -1;
+  let escStart = -1;
+  let escEnd = -1;
+  if (mode === FOLD_BLOCK) {
+    i = consumeMoreIndentedLines(text, i, indent.length);
+    if (i !== -1)
+      end = i + endStep;
+  }
+  for (let ch;ch = text[i += 1]; ) {
+    if (mode === FOLD_QUOTED && ch === "\\") {
+      escStart = i;
+      switch (text[i + 1]) {
+        case "x":
+          i += 3;
+          break;
+        case "u":
+          i += 5;
+          break;
+        case "U":
+          i += 9;
+          break;
+        default:
+          i += 1;
+      }
+      escEnd = i;
+    }
+    if (ch === `
+`) {
+      if (mode === FOLD_BLOCK)
+        i = consumeMoreIndentedLines(text, i, indent.length);
+      end = i + indent.length + endStep;
+      split = undefined;
+    } else {
+      if (ch === " " && prev && prev !== " " && prev !== `
+` && prev !== "\t") {
+        const next = text[i + 1];
+        if (next && next !== " " && next !== `
+` && next !== "\t")
+          split = i;
+      }
+      if (i >= end) {
+        if (split) {
+          folds.push(split);
+          end = split + endStep;
+          split = undefined;
+        } else if (mode === FOLD_QUOTED) {
+          while (prev === " " || prev === "\t") {
+            prev = ch;
+            ch = text[i += 1];
+            overflow = true;
+          }
+          const j = i > escEnd + 1 ? i - 2 : escStart - 1;
+          if (escapedFolds[j])
+            return text;
+          folds.push(j);
+          escapedFolds[j] = true;
+          end = j + endStep;
+          split = undefined;
+        } else {
+          overflow = true;
+        }
+      }
+    }
+    prev = ch;
+  }
+  if (overflow && onOverflow)
+    onOverflow();
+  if (folds.length === 0)
+    return text;
+  if (onFold)
+    onFold();
+  let res = text.slice(0, folds[0]);
+  for (let i2 = 0;i2 < folds.length; ++i2) {
+    const fold = folds[i2];
+    const end2 = folds[i2 + 1] || text.length;
+    if (fold === 0)
+      res = `
+${indent}${text.slice(0, end2)}`;
+    else {
+      if (mode === FOLD_QUOTED && escapedFolds[fold])
+        res += `${text[fold]}\\`;
+      res += `
+${indent}${text.slice(fold + 1, end2)}`;
+    }
+  }
+  return res;
+}
+function consumeMoreIndentedLines(text, i, indent) {
+  let end = i;
+  let start = i + 1;
+  let ch = text[start];
+  while (ch === " " || ch === "\t") {
+    if (i < start + indent) {
+      ch = text[++i];
+    } else {
+      do {
+        ch = text[++i];
+      } while (ch && ch !== `
+`);
+      end = i;
+      start = i + 1;
+      ch = text[start];
+    }
+  }
+  return end;
+}
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/stringify/stringifyString.js
+var getFoldOptions = (ctx, isBlock) => ({
+  indentAtStart: isBlock ? ctx.indent.length : ctx.indentAtStart,
+  lineWidth: ctx.options.lineWidth,
+  minContentWidth: ctx.options.minContentWidth
+});
+var containsDocumentMarker = (str) => /^(%|---|\.\.\.)/m.test(str);
+function lineLengthOverLimit(str, lineWidth, indentLength) {
+  if (!lineWidth || lineWidth < 0)
+    return false;
+  const limit = lineWidth - indentLength;
+  const strLen = str.length;
+  if (strLen <= limit)
+    return false;
+  for (let i = 0, start = 0;i < strLen; ++i) {
+    if (str[i] === `
+`) {
+      if (i - start > limit)
+        return true;
+      start = i + 1;
+      if (strLen - start <= limit)
+        return false;
+    }
+  }
+  return true;
+}
+function doubleQuotedString(value, ctx) {
+  const json = JSON.stringify(value);
+  if (ctx.options.doubleQuotedAsJSON)
+    return json;
+  const { implicitKey } = ctx;
+  const minMultiLineLength = ctx.options.doubleQuotedMinMultiLineLength;
+  const indent = ctx.indent || (containsDocumentMarker(value) ? "  " : "");
+  let str = "";
+  let start = 0;
+  for (let i = 0, ch = json[i];ch; ch = json[++i]) {
+    if (ch === " " && json[i + 1] === "\\" && json[i + 2] === "n") {
+      str += json.slice(start, i) + "\\ ";
+      i += 1;
+      start = i;
+      ch = "\\";
+    }
+    if (ch === "\\")
+      switch (json[i + 1]) {
+        case "u":
+          {
+            str += json.slice(start, i);
+            const code = json.substr(i + 2, 4);
+            switch (code) {
+              case "0000":
+                str += "\\0";
+                break;
+              case "0007":
+                str += "\\a";
+                break;
+              case "000b":
+                str += "\\v";
+                break;
+              case "001b":
+                str += "\\e";
+                break;
+              case "0085":
+                str += "\\N";
+                break;
+              case "00a0":
+                str += "\\_";
+                break;
+              case "2028":
+                str += "\\L";
+                break;
+              case "2029":
+                str += "\\P";
+                break;
+              default:
+                if (code.substr(0, 2) === "00")
+                  str += "\\x" + code.substr(2);
+                else
+                  str += json.substr(i, 6);
+            }
+            i += 5;
+            start = i + 1;
+          }
+          break;
+        case "n":
+          if (implicitKey || json[i + 2] === '"' || json.length < minMultiLineLength) {
+            i += 1;
+          } else {
+            str += json.slice(start, i) + `
+
+`;
+            while (json[i + 2] === "\\" && json[i + 3] === "n" && json[i + 4] !== '"') {
+              str += `
+`;
+              i += 2;
+            }
+            str += indent;
+            if (json[i + 2] === " ")
+              str += "\\";
+            i += 1;
+            start = i + 1;
+          }
+          break;
+        default:
+          i += 1;
+      }
+  }
+  str = start ? str + json.slice(start) : json;
+  return implicitKey ? str : foldFlowLines(str, indent, FOLD_QUOTED, getFoldOptions(ctx, false));
+}
+function singleQuotedString(value, ctx) {
+  if (ctx.options.singleQuote === false || ctx.implicitKey && value.includes(`
+`) || /[ \t]\n|\n[ \t]/.test(value))
+    return doubleQuotedString(value, ctx);
+  const indent = ctx.indent || (containsDocumentMarker(value) ? "  " : "");
+  const res = "'" + value.replace(/'/g, "''").replace(/\n+/g, `$&
+${indent}`) + "'";
+  return ctx.implicitKey ? res : foldFlowLines(res, indent, FOLD_FLOW, getFoldOptions(ctx, false));
+}
+function quotedString(value, ctx) {
+  const { singleQuote } = ctx.options;
+  let qs;
+  if (singleQuote === false)
+    qs = doubleQuotedString;
+  else {
+    const hasDouble = value.includes('"');
+    const hasSingle = value.includes("'");
+    if (hasDouble && !hasSingle)
+      qs = singleQuotedString;
+    else if (hasSingle && !hasDouble)
+      qs = doubleQuotedString;
+    else
+      qs = singleQuote ? singleQuotedString : doubleQuotedString;
+  }
+  return qs(value, ctx);
+}
+var blockEndNewlines;
+try {
+  blockEndNewlines = new RegExp(`(^|(?<!
+))
++(?!
+|$)`, "g");
+} catch {
+  blockEndNewlines = /\n+(?!\n|$)/g;
+}
+function blockString({ comment, type, value }, ctx, onComment, onChompKeep) {
+  const { blockQuote, commentString, lineWidth } = ctx.options;
+  if (!blockQuote || /\n[\t ]+$/.test(value)) {
+    return quotedString(value, ctx);
+  }
+  const indent = ctx.indent || (ctx.forceBlockIndent || containsDocumentMarker(value) ? "  " : "");
+  const literal = blockQuote === "literal" ? true : blockQuote === "folded" || type === Scalar.BLOCK_FOLDED ? false : type === Scalar.BLOCK_LITERAL ? true : !lineLengthOverLimit(value, lineWidth, indent.length);
+  if (!value)
+    return literal ? `|
+` : `>
+`;
+  let chomp;
+  let endStart;
+  for (endStart = value.length;endStart > 0; --endStart) {
+    const ch = value[endStart - 1];
+    if (ch !== `
+` && ch !== "\t" && ch !== " ")
+      break;
+  }
+  let end = value.substring(endStart);
+  const endNlPos = end.indexOf(`
+`);
+  if (endNlPos === -1) {
+    chomp = "-";
+  } else if (value === end || endNlPos !== end.length - 1) {
+    chomp = "+";
+    if (onChompKeep)
+      onChompKeep();
+  } else {
+    chomp = "";
+  }
+  if (end) {
+    value = value.slice(0, -end.length);
+    if (end[end.length - 1] === `
+`)
+      end = end.slice(0, -1);
+    end = end.replace(blockEndNewlines, `$&${indent}`);
+  }
+  let startWithSpace = false;
+  let startEnd;
+  let startNlPos = -1;
+  for (startEnd = 0;startEnd < value.length; ++startEnd) {
+    const ch = value[startEnd];
+    if (ch === " ")
+      startWithSpace = true;
+    else if (ch === `
+`)
+      startNlPos = startEnd;
+    else
+      break;
+  }
+  let start = value.substring(0, startNlPos < startEnd ? startNlPos + 1 : startEnd);
+  if (start) {
+    value = value.substring(start.length);
+    start = start.replace(/\n+/g, `$&${indent}`);
+  }
+  const indentSize = indent ? "2" : "1";
+  let header = (startWithSpace ? indentSize : "") + chomp;
+  if (comment) {
+    header += " " + commentString(comment.replace(/ ?[\r\n]+/g, " "));
+    if (onComment)
+      onComment();
+  }
+  if (!literal) {
+    const foldedValue = value.replace(/\n+/g, `
+$&`).replace(/(?:^|\n)([\t ].*)(?:([\n\t ]*)\n(?![\n\t ]))?/g, "$1$2").replace(/\n+/g, `$&${indent}`);
+    let literalFallback = false;
+    const foldOptions = getFoldOptions(ctx, true);
+    if (blockQuote !== "folded" && type !== Scalar.BLOCK_FOLDED) {
+      foldOptions.onOverflow = () => {
+        literalFallback = true;
+      };
+    }
+    const body = foldFlowLines(`${start}${foldedValue}${end}`, indent, FOLD_BLOCK, foldOptions);
+    if (!literalFallback)
+      return `>${header}
+${indent}${body}`;
+  }
+  value = value.replace(/\n+/g, `$&${indent}`);
+  return `|${header}
+${indent}${start}${value}${end}`;
+}
+function plainString(item, ctx, onComment, onChompKeep) {
+  const { type, value } = item;
+  const { actualString, implicitKey, indent, indentStep, inFlow } = ctx;
+  if (implicitKey && value.includes(`
+`) || inFlow && /[[\]{},]/.test(value)) {
+    return quotedString(value, ctx);
+  }
+  if (/^[\n\t ,[\]{}#&*!|>'"%@`]|^[?-]$|^[?-][ \t]|[\n:][ \t]|[ \t]\n|[\n\t ]#|[\n\t :]$/.test(value)) {
+    return implicitKey || inFlow || !value.includes(`
+`) ? quotedString(value, ctx) : blockString(item, ctx, onComment, onChompKeep);
+  }
+  if (!implicitKey && !inFlow && type !== Scalar.PLAIN && value.includes(`
+`)) {
+    return blockString(item, ctx, onComment, onChompKeep);
+  }
+  if (containsDocumentMarker(value)) {
+    if (indent === "") {
+      ctx.forceBlockIndent = true;
+      return blockString(item, ctx, onComment, onChompKeep);
+    } else if (implicitKey && indent === indentStep) {
+      return quotedString(value, ctx);
+    }
+  }
+  const str = value.replace(/\n+/g, `$&
+${indent}`);
+  if (actualString) {
+    const test = (tag) => tag.default && tag.tag !== "tag:yaml.org,2002:str" && tag.test?.test(str);
+    const { compat, tags } = ctx.doc.schema;
+    if (tags.some(test) || compat?.some(test))
+      return quotedString(value, ctx);
+  }
+  return implicitKey ? str : foldFlowLines(str, indent, FOLD_FLOW, getFoldOptions(ctx, false));
+}
+function stringifyString(item, ctx, onComment, onChompKeep) {
+  const { implicitKey, inFlow } = ctx;
+  const ss = typeof item.value === "string" ? item : Object.assign({}, item, { value: String(item.value) });
+  let { type } = item;
+  if (type !== Scalar.QUOTE_DOUBLE) {
+    if (/[\x00-\x08\x0b-\x1f\x7f-\x9f\u{D800}-\u{DFFF}]/u.test(ss.value))
+      type = Scalar.QUOTE_DOUBLE;
+  }
+  const _stringify = (_type) => {
+    switch (_type) {
+      case Scalar.BLOCK_FOLDED:
+      case Scalar.BLOCK_LITERAL:
+        return implicitKey || inFlow ? quotedString(ss.value, ctx) : blockString(ss, ctx, onComment, onChompKeep);
+      case Scalar.QUOTE_DOUBLE:
+        return doubleQuotedString(ss.value, ctx);
+      case Scalar.QUOTE_SINGLE:
+        return singleQuotedString(ss.value, ctx);
+      case Scalar.PLAIN:
+        return plainString(ss, ctx, onComment, onChompKeep);
+      default:
+        return null;
+    }
+  };
+  let res = _stringify(type);
+  if (res === null) {
+    const { defaultKeyType, defaultStringType } = ctx.options;
+    const t = implicitKey && defaultKeyType || defaultStringType;
+    res = _stringify(t);
+    if (res === null)
+      throw new Error(`Unsupported default string type ${t}`);
+  }
+  return res;
+}
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/stringify/stringify.js
+function createStringifyContext(doc, options) {
+  const opt = Object.assign({
+    blockQuote: true,
+    commentString: stringifyComment,
+    defaultKeyType: null,
+    defaultStringType: "PLAIN",
+    directives: null,
+    doubleQuotedAsJSON: false,
+    doubleQuotedMinMultiLineLength: 40,
+    falseStr: "false",
+    flowCollectionPadding: true,
+    indentSeq: true,
+    lineWidth: 80,
+    minContentWidth: 20,
+    nullStr: "null",
+    simpleKeys: false,
+    singleQuote: null,
+    trailingComma: false,
+    trueStr: "true",
+    verifyAliasOrder: true
+  }, doc.schema.toStringOptions, options);
+  let inFlow;
+  switch (opt.collectionStyle) {
+    case "block":
+      inFlow = false;
+      break;
+    case "flow":
+      inFlow = true;
+      break;
+    default:
+      inFlow = null;
+  }
+  return {
+    anchors: new Set,
+    doc,
+    flowCollectionPadding: opt.flowCollectionPadding ? " " : "",
+    indent: "",
+    indentStep: typeof opt.indent === "number" ? " ".repeat(opt.indent) : "  ",
+    inFlow,
+    options: opt
+  };
+}
+function getTagObject(tags, item) {
+  if (item.tag) {
+    const match = tags.filter((t) => t.tag === item.tag);
+    if (match.length > 0)
+      return match.find((t) => t.format === item.format) ?? match[0];
+  }
+  let tagObj = undefined;
+  let obj;
+  if (isScalar(item)) {
+    obj = item.value;
+    let match = tags.filter((t) => t.identify?.(obj));
+    if (match.length > 1) {
+      const testMatch = match.filter((t) => t.test);
+      if (testMatch.length > 0)
+        match = testMatch;
+    }
+    tagObj = match.find((t) => t.format === item.format) ?? match.find((t) => !t.format);
+  } else {
+    obj = item;
+    tagObj = tags.find((t) => t.nodeClass && obj instanceof t.nodeClass);
+  }
+  if (!tagObj) {
+    const name = obj?.constructor?.name ?? (obj === null ? "null" : typeof obj);
+    throw new Error(`Tag not resolved for ${name} value`);
+  }
+  return tagObj;
+}
+function stringifyProps(node, tagObj, { anchors, doc }) {
+  if (!doc.directives)
+    return "";
+  const props = [];
+  const anchor = (isScalar(node) || isCollection(node)) && node.anchor;
+  if (anchor && anchorIsValid(anchor)) {
+    anchors.add(anchor);
+    props.push(`&${anchor}`);
+  }
+  const tag = node.tag ?? (tagObj.default ? null : tagObj.tag);
+  if (tag)
+    props.push(doc.directives.tagString(tag));
+  return props.join(" ");
+}
+function stringify(item, ctx, onComment, onChompKeep) {
+  if (isPair(item))
+    return item.toString(ctx, onComment, onChompKeep);
+  if (isAlias(item)) {
+    if (ctx.doc.directives)
+      return item.toString(ctx);
+    if (ctx.resolvedAliases?.has(item)) {
+      throw new TypeError(`Cannot stringify circular structure without alias nodes`);
+    } else {
+      if (ctx.resolvedAliases)
+        ctx.resolvedAliases.add(item);
+      else
+        ctx.resolvedAliases = new Set([item]);
+      item = item.resolve(ctx.doc);
+    }
+  }
+  let tagObj = undefined;
+  const node = isNode(item) ? item : ctx.doc.createNode(item, { onTagObj: (o) => tagObj = o });
+  tagObj ?? (tagObj = getTagObject(ctx.doc.schema.tags, node));
+  const props = stringifyProps(node, tagObj, ctx);
+  if (props.length > 0)
+    ctx.indentAtStart = (ctx.indentAtStart ?? 0) + props.length + 1;
+  const str = typeof tagObj.stringify === "function" ? tagObj.stringify(node, ctx, onComment, onChompKeep) : isScalar(node) ? stringifyString(node, ctx, onComment, onChompKeep) : node.toString(ctx, onComment, onChompKeep);
+  if (!props)
+    return str;
+  return isScalar(node) || str[0] === "{" || str[0] === "[" ? `${props} ${str}` : `${props}
+${ctx.indent}${str}`;
+}
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/stringify/stringifyPair.js
+function stringifyPair({ key, value }, ctx, onComment, onChompKeep) {
+  const { allNullValues, doc, indent, indentStep, options: { commentString, indentSeq, simpleKeys } } = ctx;
+  let keyComment = isNode(key) && key.comment || null;
+  if (simpleKeys) {
+    if (keyComment) {
+      throw new Error("With simple keys, key nodes cannot have comments");
+    }
+    if (isCollection(key) || !isNode(key) && typeof key === "object") {
+      const msg = "With simple keys, collection cannot be used as a key value";
+      throw new Error(msg);
+    }
+  }
+  let explicitKey = !simpleKeys && (!key || keyComment && value == null && !ctx.inFlow || isCollection(key) || (isScalar(key) ? key.type === Scalar.BLOCK_FOLDED || key.type === Scalar.BLOCK_LITERAL : typeof key === "object"));
+  ctx = Object.assign({}, ctx, {
+    allNullValues: false,
+    implicitKey: !explicitKey && (simpleKeys || !allNullValues),
+    indent: indent + indentStep
+  });
+  let keyCommentDone = false;
+  let chompKeep = false;
+  let str = stringify(key, ctx, () => keyCommentDone = true, () => chompKeep = true);
+  if (!explicitKey && !ctx.inFlow && str.length > 1024) {
+    if (simpleKeys)
+      throw new Error("With simple keys, single line scalar must not span more than 1024 characters");
+    explicitKey = true;
+  }
+  if (ctx.inFlow) {
+    if (allNullValues || value == null) {
+      if (keyCommentDone && onComment)
+        onComment();
+      return str === "" ? "?" : explicitKey ? `? ${str}` : str;
+    }
+  } else if (allNullValues && !simpleKeys || value == null && explicitKey) {
+    str = `? ${str}`;
+    if (keyComment && !keyCommentDone) {
+      str += lineComment(str, ctx.indent, commentString(keyComment));
+    } else if (chompKeep && onChompKeep)
+      onChompKeep();
+    return str;
+  }
+  if (keyCommentDone)
+    keyComment = null;
+  if (explicitKey) {
+    if (keyComment)
+      str += lineComment(str, ctx.indent, commentString(keyComment));
+    str = `? ${str}
+${indent}:`;
+  } else {
+    str = `${str}:`;
+    if (keyComment)
+      str += lineComment(str, ctx.indent, commentString(keyComment));
+  }
+  let vsb, vcb, valueComment;
+  if (isNode(value)) {
+    vsb = !!value.spaceBefore;
+    vcb = value.commentBefore;
+    valueComment = value.comment;
+  } else {
+    vsb = false;
+    vcb = null;
+    valueComment = null;
+    if (value && typeof value === "object")
+      value = doc.createNode(value);
+  }
+  ctx.implicitKey = false;
+  if (!explicitKey && !keyComment && isScalar(value))
+    ctx.indentAtStart = str.length + 1;
+  chompKeep = false;
+  if (!indentSeq && indentStep.length >= 2 && !ctx.inFlow && !explicitKey && isSeq(value) && !value.flow && !value.tag && !value.anchor) {
+    ctx.indent = ctx.indent.substring(2);
+  }
+  let valueCommentDone = false;
+  const valueStr = stringify(value, ctx, () => valueCommentDone = true, () => chompKeep = true);
+  let ws = " ";
+  if (keyComment || vsb || vcb) {
+    ws = vsb ? `
+` : "";
+    if (vcb) {
+      const cs = commentString(vcb);
+      ws += `
+${indentComment(cs, ctx.indent)}`;
+    }
+    if (valueStr === "" && !ctx.inFlow) {
+      if (ws === `
+` && valueComment)
+        ws = `
+
+`;
+    } else {
+      ws += `
+${ctx.indent}`;
+    }
+  } else if (!explicitKey && isCollection(value)) {
+    const vs0 = valueStr[0];
+    const nl0 = valueStr.indexOf(`
+`);
+    const hasNewline = nl0 !== -1;
+    const flow = ctx.inFlow ?? value.flow ?? value.items.length === 0;
+    if (hasNewline || !flow) {
+      let hasPropsLine = false;
+      if (hasNewline && (vs0 === "&" || vs0 === "!")) {
+        let sp0 = valueStr.indexOf(" ");
+        if (vs0 === "&" && sp0 !== -1 && sp0 < nl0 && valueStr[sp0 + 1] === "!") {
+          sp0 = valueStr.indexOf(" ", sp0 + 1);
+        }
+        if (sp0 === -1 || nl0 < sp0)
+          hasPropsLine = true;
+      }
+      if (!hasPropsLine)
+        ws = `
+${ctx.indent}`;
+    }
+  } else if (valueStr === "" || valueStr[0] === `
+`) {
+    ws = "";
+  }
+  str += ws + valueStr;
+  if (ctx.inFlow) {
+    if (valueCommentDone && onComment)
+      onComment();
+  } else if (valueComment && !valueCommentDone) {
+    str += lineComment(str, ctx.indent, commentString(valueComment));
+  } else if (chompKeep && onChompKeep) {
+    onChompKeep();
+  }
+  return str;
+}
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/log.js
+function warn(logLevel, warning) {
+  if (logLevel === "debug" || logLevel === "warn") {
+    console.warn(warning);
+  }
+}
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/schema/yaml-1.1/merge.js
+var MERGE_KEY = "<<";
+var merge = {
+  identify: (value) => value === MERGE_KEY || typeof value === "symbol" && value.description === MERGE_KEY,
+  default: "key",
+  tag: "tag:yaml.org,2002:merge",
+  test: /^<<$/,
+  resolve: () => Object.assign(new Scalar(Symbol(MERGE_KEY)), {
+    addToJSMap: addMergeToJSMap
+  }),
+  stringify: () => MERGE_KEY
+};
+var isMergeKey = (ctx, key) => (merge.identify(key) || isScalar(key) && (!key.type || key.type === Scalar.PLAIN) && merge.identify(key.value)) && ctx?.doc.schema.tags.some((tag) => tag.tag === merge.tag && tag.default);
+function addMergeToJSMap(ctx, map, value) {
+  const source = resolveAliasValue(ctx, value);
+  if (isSeq(source))
+    for (const it of source.items)
+      mergeValue(ctx, map, it);
+  else if (Array.isArray(source))
+    for (const it of source)
+      mergeValue(ctx, map, it);
+  else
+    mergeValue(ctx, map, source);
+}
+function mergeValue(ctx, map, value) {
+  const source = resolveAliasValue(ctx, value);
+  if (!isMap(source))
+    throw new Error("Merge sources must be maps or map aliases");
+  const srcMap = source.toJSON(null, ctx, Map);
+  for (const [key, value2] of srcMap) {
+    if (map instanceof Map) {
+      if (!map.has(key))
+        map.set(key, value2);
+    } else if (map instanceof Set) {
+      map.add(key);
+    } else if (!Object.prototype.hasOwnProperty.call(map, key)) {
+      Object.defineProperty(map, key, {
+        value: value2,
+        writable: true,
+        enumerable: true,
+        configurable: true
+      });
+    }
+  }
+  return map;
+}
+function resolveAliasValue(ctx, value) {
+  return ctx && isAlias(value) ? value.resolve(ctx.doc, ctx) : value;
+}
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/nodes/addPairToJSMap.js
+function addPairToJSMap(ctx, map, { key, value }) {
+  if (isNode(key) && key.addToJSMap)
+    key.addToJSMap(ctx, map, value);
+  else if (isMergeKey(ctx, key))
+    addMergeToJSMap(ctx, map, value);
+  else {
+    const jsKey = toJS(key, "", ctx);
+    if (map instanceof Map) {
+      map.set(jsKey, toJS(value, jsKey, ctx));
+    } else if (map instanceof Set) {
+      map.add(jsKey);
+    } else {
+      const stringKey = stringifyKey(key, jsKey, ctx);
+      const jsValue = toJS(value, stringKey, ctx);
+      if (stringKey in map)
+        Object.defineProperty(map, stringKey, {
+          value: jsValue,
+          writable: true,
+          enumerable: true,
+          configurable: true
+        });
+      else
+        map[stringKey] = jsValue;
+    }
+  }
+  return map;
+}
+function stringifyKey(key, jsKey, ctx) {
+  if (jsKey === null)
+    return "";
+  if (typeof jsKey !== "object")
+    return String(jsKey);
+  if (isNode(key) && ctx?.doc) {
+    const strCtx = createStringifyContext(ctx.doc, {});
+    strCtx.anchors = new Set;
+    for (const node of ctx.anchors.keys())
+      strCtx.anchors.add(node.anchor);
+    strCtx.inFlow = true;
+    strCtx.inStringifyKey = true;
+    const strKey = key.toString(strCtx);
+    if (!ctx.mapKeyWarned) {
+      let jsonStr = JSON.stringify(strKey);
+      if (jsonStr.length > 40)
+        jsonStr = jsonStr.substring(0, 36) + '..."';
+      warn(ctx.doc.options.logLevel, `Keys with collection values will be stringified due to JS Object restrictions: ${jsonStr}. Set mapAsMap: true to use object keys.`);
+      ctx.mapKeyWarned = true;
+    }
+    return strKey;
+  }
+  return JSON.stringify(jsKey);
+}
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/nodes/Pair.js
+function createPair(key, value, ctx) {
+  const k = createNode(key, undefined, ctx);
+  const v = createNode(value, undefined, ctx);
+  return new Pair(k, v);
+}
+
+class Pair {
+  constructor(key, value = null) {
+    Object.defineProperty(this, NODE_TYPE, { value: PAIR });
+    this.key = key;
+    this.value = value;
+  }
+  clone(schema) {
+    let { key, value } = this;
+    if (isNode(key))
+      key = key.clone(schema);
+    if (isNode(value))
+      value = value.clone(schema);
+    return new Pair(key, value);
+  }
+  toJSON(_, ctx) {
+    const pair = ctx?.mapAsMap ? new Map : {};
+    return addPairToJSMap(ctx, pair, this);
+  }
+  toString(ctx, onComment, onChompKeep) {
+    return ctx?.doc ? stringifyPair(this, ctx, onComment, onChompKeep) : JSON.stringify(this);
+  }
+}
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/stringify/stringifyCollection.js
+function stringifyCollection(collection, ctx, options) {
+  const flow = ctx.inFlow ?? collection.flow;
+  const stringify2 = flow ? stringifyFlowCollection : stringifyBlockCollection;
+  return stringify2(collection, ctx, options);
+}
+function stringifyBlockCollection({ comment, items }, ctx, { blockItemPrefix, flowChars, itemIndent, onChompKeep, onComment }) {
+  const { indent, options: { commentString } } = ctx;
+  const itemCtx = Object.assign({}, ctx, { indent: itemIndent, type: null });
+  let chompKeep = false;
+  const lines = [];
+  for (let i = 0;i < items.length; ++i) {
+    const item = items[i];
+    let comment2 = null;
+    if (isNode(item)) {
+      if (!chompKeep && item.spaceBefore)
+        lines.push("");
+      addCommentBefore(ctx, lines, item.commentBefore, chompKeep);
+      if (item.comment)
+        comment2 = item.comment;
+    } else if (isPair(item)) {
+      const ik = isNode(item.key) ? item.key : null;
+      if (ik) {
+        if (!chompKeep && ik.spaceBefore)
+          lines.push("");
+        addCommentBefore(ctx, lines, ik.commentBefore, chompKeep);
+      }
+    }
+    chompKeep = false;
+    let str2 = stringify(item, itemCtx, () => comment2 = null, () => chompKeep = true);
+    if (comment2)
+      str2 += lineComment(str2, itemIndent, commentString(comment2));
+    if (chompKeep && comment2)
+      chompKeep = false;
+    lines.push(blockItemPrefix + str2);
+  }
+  let str;
+  if (lines.length === 0) {
+    str = flowChars.start + flowChars.end;
+  } else {
+    str = lines[0];
+    for (let i = 1;i < lines.length; ++i) {
+      const line = lines[i];
+      str += line ? `
+${indent}${line}` : `
+`;
+    }
+  }
+  if (comment) {
+    str += `
+` + indentComment(commentString(comment), indent);
+    if (onComment)
+      onComment();
+  } else if (chompKeep && onChompKeep)
+    onChompKeep();
+  return str;
+}
+function stringifyFlowCollection({ items }, ctx, { flowChars, itemIndent }) {
+  const { indent, indentStep, flowCollectionPadding: fcPadding, options: { commentString } } = ctx;
+  itemIndent += indentStep;
+  const itemCtx = Object.assign({}, ctx, {
+    indent: itemIndent,
+    inFlow: true,
+    type: null
+  });
+  let reqNewline = false;
+  let linesAtValue = 0;
+  const lines = [];
+  for (let i = 0;i < items.length; ++i) {
+    const item = items[i];
+    let comment = null;
+    if (isNode(item)) {
+      if (item.spaceBefore)
+        lines.push("");
+      addCommentBefore(ctx, lines, item.commentBefore, false);
+      if (item.comment)
+        comment = item.comment;
+    } else if (isPair(item)) {
+      const ik = isNode(item.key) ? item.key : null;
+      if (ik) {
+        if (ik.spaceBefore)
+          lines.push("");
+        addCommentBefore(ctx, lines, ik.commentBefore, false);
+        if (ik.comment)
+          reqNewline = true;
+      }
+      const iv = isNode(item.value) ? item.value : null;
+      if (iv) {
+        if (iv.comment)
+          comment = iv.comment;
+        if (iv.commentBefore)
+          reqNewline = true;
+      } else if (item.value == null && ik?.comment) {
+        comment = ik.comment;
+      }
+    }
+    if (comment)
+      reqNewline = true;
+    let str = stringify(item, itemCtx, () => comment = null);
+    reqNewline || (reqNewline = lines.length > linesAtValue || str.includes(`
+`));
+    if (i < items.length - 1) {
+      str += ",";
+    } else if (ctx.options.trailingComma) {
+      if (ctx.options.lineWidth > 0) {
+        reqNewline || (reqNewline = lines.reduce((sum, line) => sum + line.length + 2, 2) + (str.length + 2) > ctx.options.lineWidth);
+      }
+      if (reqNewline) {
+        str += ",";
+      }
+    }
+    if (comment)
+      str += lineComment(str, itemIndent, commentString(comment));
+    lines.push(str);
+    linesAtValue = lines.length;
+  }
+  const { start, end } = flowChars;
+  if (lines.length === 0) {
+    return start + end;
+  } else {
+    if (!reqNewline) {
+      const len = lines.reduce((sum, line) => sum + line.length + 2, 2);
+      reqNewline = ctx.options.lineWidth > 0 && len > ctx.options.lineWidth;
+    }
+    if (reqNewline) {
+      let str = start;
+      for (const line of lines)
+        str += line ? `
+${indentStep}${indent}${line}` : `
+`;
+      return `${str}
+${indent}${end}`;
+    } else {
+      return `${start}${fcPadding}${lines.join(" ")}${fcPadding}${end}`;
+    }
+  }
+}
+function addCommentBefore({ indent, options: { commentString } }, lines, comment, chompKeep) {
+  if (comment && chompKeep)
+    comment = comment.replace(/^\n+/, "");
+  if (comment) {
+    const ic = indentComment(commentString(comment), indent);
+    lines.push(ic.trimStart());
+  }
+}
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/nodes/YAMLMap.js
+function findPair(items, key) {
+  const k = isScalar(key) ? key.value : key;
+  for (const it of items) {
+    if (isPair(it)) {
+      if (it.key === key || it.key === k)
+        return it;
+      if (isScalar(it.key) && it.key.value === k)
+        return it;
+    }
+  }
+  return;
+}
+
+class YAMLMap extends Collection {
+  static get tagName() {
+    return "tag:yaml.org,2002:map";
+  }
+  constructor(schema) {
+    super(MAP, schema);
+    this.items = [];
+  }
+  static from(schema, obj, ctx) {
+    const { keepUndefined, replacer } = ctx;
+    const map = new this(schema);
+    const add = (key, value) => {
+      if (typeof replacer === "function")
+        value = replacer.call(obj, key, value);
+      else if (Array.isArray(replacer) && !replacer.includes(key))
+        return;
+      if (value !== undefined || keepUndefined)
+        map.items.push(createPair(key, value, ctx));
+    };
+    if (obj instanceof Map) {
+      for (const [key, value] of obj)
+        add(key, value);
+    } else if (obj && typeof obj === "object") {
+      for (const key of Object.keys(obj))
+        add(key, obj[key]);
+    }
+    if (typeof schema.sortMapEntries === "function") {
+      map.items.sort(schema.sortMapEntries);
+    }
+    return map;
+  }
+  add(pair, overwrite) {
+    let _pair;
+    if (isPair(pair))
+      _pair = pair;
+    else if (!pair || typeof pair !== "object" || !("key" in pair)) {
+      _pair = new Pair(pair, pair?.value);
+    } else
+      _pair = new Pair(pair.key, pair.value);
+    const prev = findPair(this.items, _pair.key);
+    const sortEntries = this.schema?.sortMapEntries;
+    if (prev) {
+      if (!overwrite)
+        throw new Error(`Key ${_pair.key} already set`);
+      if (isScalar(prev.value) && isScalarValue(_pair.value))
+        prev.value.value = _pair.value;
+      else
+        prev.value = _pair.value;
+    } else if (sortEntries) {
+      const i = this.items.findIndex((item) => sortEntries(_pair, item) < 0);
+      if (i === -1)
+        this.items.push(_pair);
+      else
+        this.items.splice(i, 0, _pair);
+    } else {
+      this.items.push(_pair);
+    }
+  }
+  delete(key) {
+    const it = findPair(this.items, key);
+    if (!it)
+      return false;
+    const del = this.items.splice(this.items.indexOf(it), 1);
+    return del.length > 0;
+  }
+  get(key, keepScalar) {
+    const it = findPair(this.items, key);
+    const node = it?.value;
+    return (!keepScalar && isScalar(node) ? node.value : node) ?? undefined;
+  }
+  has(key) {
+    return !!findPair(this.items, key);
+  }
+  set(key, value) {
+    this.add(new Pair(key, value), true);
+  }
+  toJSON(_, ctx, Type) {
+    const map = Type ? new Type : ctx?.mapAsMap ? new Map : {};
+    if (ctx?.onCreate)
+      ctx.onCreate(map);
+    for (const item of this.items)
+      addPairToJSMap(ctx, map, item);
+    return map;
+  }
+  toString(ctx, onComment, onChompKeep) {
+    if (!ctx)
+      return JSON.stringify(this);
+    for (const item of this.items) {
+      if (!isPair(item))
+        throw new Error(`Map items must all be pairs; found ${JSON.stringify(item)} instead`);
+    }
+    if (!ctx.allNullValues && this.hasAllNullValues(false))
+      ctx = Object.assign({}, ctx, { allNullValues: true });
+    return stringifyCollection(this, ctx, {
+      blockItemPrefix: "",
+      flowChars: { start: "{", end: "}" },
+      itemIndent: ctx.indent || "",
+      onChompKeep,
+      onComment
+    });
+  }
+}
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/schema/common/map.js
+var map = {
+  collection: "map",
+  default: true,
+  nodeClass: YAMLMap,
+  tag: "tag:yaml.org,2002:map",
+  resolve(map2, onError) {
+    if (!isMap(map2))
+      onError("Expected a mapping for this tag");
+    return map2;
+  },
+  createNode: (schema, obj, ctx) => YAMLMap.from(schema, obj, ctx)
+};
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/nodes/YAMLSeq.js
+class YAMLSeq extends Collection {
+  static get tagName() {
+    return "tag:yaml.org,2002:seq";
+  }
+  constructor(schema) {
+    super(SEQ, schema);
+    this.items = [];
+  }
+  add(value) {
+    this.items.push(value);
+  }
+  delete(key) {
+    const idx = asItemIndex(key);
+    if (typeof idx !== "number")
+      return false;
+    const del = this.items.splice(idx, 1);
+    return del.length > 0;
+  }
+  get(key, keepScalar) {
+    const idx = asItemIndex(key);
+    if (typeof idx !== "number")
+      return;
+    const it = this.items[idx];
+    return !keepScalar && isScalar(it) ? it.value : it;
+  }
+  has(key) {
+    const idx = asItemIndex(key);
+    return typeof idx === "number" && idx < this.items.length;
+  }
+  set(key, value) {
+    const idx = asItemIndex(key);
+    if (typeof idx !== "number")
+      throw new Error(`Expected a valid index, not ${key}.`);
+    const prev = this.items[idx];
+    if (isScalar(prev) && isScalarValue(value))
+      prev.value = value;
+    else
+      this.items[idx] = value;
+  }
+  toJSON(_, ctx) {
+    const seq = [];
+    if (ctx?.onCreate)
+      ctx.onCreate(seq);
+    let i = 0;
+    for (const item of this.items)
+      seq.push(toJS(item, String(i++), ctx));
+    return seq;
+  }
+  toString(ctx, onComment, onChompKeep) {
+    if (!ctx)
+      return JSON.stringify(this);
+    return stringifyCollection(this, ctx, {
+      blockItemPrefix: "- ",
+      flowChars: { start: "[", end: "]" },
+      itemIndent: (ctx.indent || "") + "  ",
+      onChompKeep,
+      onComment
+    });
+  }
+  static from(schema, obj, ctx) {
+    const { replacer } = ctx;
+    const seq = new this(schema);
+    if (obj && Symbol.iterator in Object(obj)) {
+      let i = 0;
+      for (let it of obj) {
+        if (typeof replacer === "function") {
+          const key = obj instanceof Set ? it : String(i++);
+          it = replacer.call(obj, key, it);
+        }
+        seq.items.push(createNode(it, undefined, ctx));
+      }
+    }
+    return seq;
+  }
+}
+function asItemIndex(key) {
+  let idx = isScalar(key) ? key.value : key;
+  if (idx && typeof idx === "string")
+    idx = Number(idx);
+  return typeof idx === "number" && Number.isInteger(idx) && idx >= 0 ? idx : null;
+}
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/schema/common/seq.js
+var seq = {
+  collection: "seq",
+  default: true,
+  nodeClass: YAMLSeq,
+  tag: "tag:yaml.org,2002:seq",
+  resolve(seq2, onError) {
+    if (!isSeq(seq2))
+      onError("Expected a sequence for this tag");
+    return seq2;
+  },
+  createNode: (schema, obj, ctx) => YAMLSeq.from(schema, obj, ctx)
+};
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/schema/common/string.js
+var string = {
+  identify: (value) => typeof value === "string",
+  default: true,
+  tag: "tag:yaml.org,2002:str",
+  resolve: (str) => str,
+  stringify(item, ctx, onComment, onChompKeep) {
+    ctx = Object.assign({ actualString: true }, ctx);
+    return stringifyString(item, ctx, onComment, onChompKeep);
+  }
+};
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/schema/common/null.js
+var nullTag = {
+  identify: (value) => value == null,
+  createNode: () => new Scalar(null),
+  default: true,
+  tag: "tag:yaml.org,2002:null",
+  test: /^(?:~|[Nn]ull|NULL)?$/,
+  resolve: () => new Scalar(null),
+  stringify: ({ source }, ctx) => typeof source === "string" && nullTag.test.test(source) ? source : ctx.options.nullStr
+};
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/schema/core/bool.js
+var boolTag = {
+  identify: (value) => typeof value === "boolean",
+  default: true,
+  tag: "tag:yaml.org,2002:bool",
+  test: /^(?:[Tt]rue|TRUE|[Ff]alse|FALSE)$/,
+  resolve: (str) => new Scalar(str[0] === "t" || str[0] === "T"),
+  stringify({ source, value }, ctx) {
+    if (source && boolTag.test.test(source)) {
+      const sv = source[0] === "t" || source[0] === "T";
+      if (value === sv)
+        return source;
+    }
+    return value ? ctx.options.trueStr : ctx.options.falseStr;
+  }
+};
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/stringify/stringifyNumber.js
+function stringifyNumber({ format, minFractionDigits, tag, value }) {
+  if (typeof value === "bigint")
+    return String(value);
+  const num = typeof value === "number" ? value : Number(value);
+  if (!isFinite(num))
+    return isNaN(num) ? ".nan" : num < 0 ? "-.inf" : ".inf";
+  let n = Object.is(value, -0) ? "-0" : JSON.stringify(value);
+  if (!format && minFractionDigits && (!tag || tag === "tag:yaml.org,2002:float") && /^-?\d/.test(n) && !n.includes("e")) {
+    let i = n.indexOf(".");
+    if (i < 0) {
+      i = n.length;
+      n += ".";
+    }
+    let d = minFractionDigits - (n.length - i - 1);
+    while (d-- > 0)
+      n += "0";
+  }
+  return n;
+}
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/schema/core/float.js
+var floatNaN = {
+  identify: (value) => typeof value === "number",
+  default: true,
+  tag: "tag:yaml.org,2002:float",
+  test: /^(?:[-+]?\.(?:inf|Inf|INF)|\.nan|\.NaN|\.NAN)$/,
+  resolve: (str) => str.slice(-3).toLowerCase() === "nan" ? NaN : str[0] === "-" ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY,
+  stringify: stringifyNumber
+};
+var floatExp = {
+  identify: (value) => typeof value === "number",
+  default: true,
+  tag: "tag:yaml.org,2002:float",
+  format: "EXP",
+  test: /^[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)[eE][-+]?[0-9]+$/,
+  resolve: (str) => parseFloat(str),
+  stringify(node) {
+    const num = Number(node.value);
+    return isFinite(num) ? num.toExponential() : stringifyNumber(node);
+  }
+};
+var float = {
+  identify: (value) => typeof value === "number",
+  default: true,
+  tag: "tag:yaml.org,2002:float",
+  test: /^[-+]?(?:\.[0-9]+|[0-9]+\.[0-9]*)$/,
+  resolve(str) {
+    const node = new Scalar(parseFloat(str));
+    const dot = str.indexOf(".");
+    if (dot !== -1 && str[str.length - 1] === "0")
+      node.minFractionDigits = str.length - dot - 1;
+    return node;
+  },
+  stringify: stringifyNumber
+};
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/schema/core/int.js
+var intIdentify = (value) => typeof value === "bigint" || Number.isInteger(value);
+var intResolve = (str, offset, radix, { intAsBigInt }) => intAsBigInt ? BigInt(str) : parseInt(str.substring(offset), radix);
+function intStringify(node, radix, prefix) {
+  const { value } = node;
+  if (intIdentify(value) && value >= 0)
+    return prefix + value.toString(radix);
+  return stringifyNumber(node);
+}
+var intOct = {
+  identify: (value) => intIdentify(value) && value >= 0,
+  default: true,
+  tag: "tag:yaml.org,2002:int",
+  format: "OCT",
+  test: /^0o[0-7]+$/,
+  resolve: (str, _onError, opt) => intResolve(str, 2, 8, opt),
+  stringify: (node) => intStringify(node, 8, "0o")
+};
+var int = {
+  identify: intIdentify,
+  default: true,
+  tag: "tag:yaml.org,2002:int",
+  test: /^[-+]?[0-9]+$/,
+  resolve: (str, _onError, opt) => intResolve(str, 0, 10, opt),
+  stringify: stringifyNumber
+};
+var intHex = {
+  identify: (value) => intIdentify(value) && value >= 0,
+  default: true,
+  tag: "tag:yaml.org,2002:int",
+  format: "HEX",
+  test: /^0x[0-9a-fA-F]+$/,
+  resolve: (str, _onError, opt) => intResolve(str, 2, 16, opt),
+  stringify: (node) => intStringify(node, 16, "0x")
+};
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/schema/core/schema.js
+var schema = [
+  map,
+  seq,
+  string,
+  nullTag,
+  boolTag,
+  intOct,
+  int,
+  intHex,
+  floatNaN,
+  floatExp,
+  float
+];
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/schema/json/schema.js
+function intIdentify2(value) {
+  return typeof value === "bigint" || Number.isInteger(value);
+}
+var stringifyJSON = ({ value }) => JSON.stringify(value);
+var jsonScalars = [
+  {
+    identify: (value) => typeof value === "string",
+    default: true,
+    tag: "tag:yaml.org,2002:str",
+    resolve: (str) => str,
+    stringify: stringifyJSON
+  },
+  {
+    identify: (value) => value == null,
+    createNode: () => new Scalar(null),
+    default: true,
+    tag: "tag:yaml.org,2002:null",
+    test: /^null$/,
+    resolve: () => null,
+    stringify: stringifyJSON
+  },
+  {
+    identify: (value) => typeof value === "boolean",
+    default: true,
+    tag: "tag:yaml.org,2002:bool",
+    test: /^true$|^false$/,
+    resolve: (str) => str === "true",
+    stringify: stringifyJSON
+  },
+  {
+    identify: intIdentify2,
+    default: true,
+    tag: "tag:yaml.org,2002:int",
+    test: /^-?(?:0|[1-9][0-9]*)$/,
+    resolve: (str, _onError, { intAsBigInt }) => intAsBigInt ? BigInt(str) : parseInt(str, 10),
+    stringify: ({ value }) => intIdentify2(value) ? value.toString() : JSON.stringify(value)
+  },
+  {
+    identify: (value) => typeof value === "number",
+    default: true,
+    tag: "tag:yaml.org,2002:float",
+    test: /^-?(?:0|[1-9][0-9]*)(?:\.[0-9]*)?(?:[eE][-+]?[0-9]+)?$/,
+    resolve: (str) => parseFloat(str),
+    stringify: stringifyJSON
+  }
+];
+var jsonError = {
+  default: true,
+  tag: "",
+  test: /^/,
+  resolve(str, onError) {
+    onError(`Unresolved plain scalar ${JSON.stringify(str)}`);
+    return str;
+  }
+};
+var schema2 = [map, seq].concat(jsonScalars, jsonError);
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/schema/yaml-1.1/binary.js
+var binary = {
+  identify: (value) => value instanceof Uint8Array,
+  default: false,
+  tag: "tag:yaml.org,2002:binary",
+  resolve(src, onError) {
+    if (typeof atob === "function") {
+      const str = atob(src.replace(/[\n\r]/g, ""));
+      const buffer = new Uint8Array(str.length);
+      for (let i = 0;i < str.length; ++i)
+        buffer[i] = str.charCodeAt(i);
+      return buffer;
+    } else {
+      onError("This environment does not support reading binary tags; either Buffer or atob is required");
+      return src;
+    }
+  },
+  stringify({ comment, type, value }, ctx, onComment, onChompKeep) {
+    if (!value)
+      return "";
+    const buf = value;
+    let str;
+    if (typeof btoa === "function") {
+      let s = "";
+      for (let i = 0;i < buf.length; ++i)
+        s += String.fromCharCode(buf[i]);
+      str = btoa(s);
+    } else {
+      throw new Error("This environment does not support writing binary tags; either Buffer or btoa is required");
+    }
+    type ?? (type = Scalar.BLOCK_LITERAL);
+    if (type !== Scalar.QUOTE_DOUBLE) {
+      const lineWidth = Math.max(ctx.options.lineWidth - ctx.indent.length, ctx.options.minContentWidth);
+      const n = Math.ceil(str.length / lineWidth);
+      const lines = new Array(n);
+      for (let i = 0, o = 0;i < n; ++i, o += lineWidth) {
+        lines[i] = str.substr(o, lineWidth);
+      }
+      str = lines.join(type === Scalar.BLOCK_LITERAL ? `
+` : " ");
+    }
+    return stringifyString({ comment, type, value: str }, ctx, onComment, onChompKeep);
+  }
+};
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/schema/yaml-1.1/pairs.js
+function resolvePairs(seq2, onError) {
+  if (isSeq(seq2)) {
+    for (let i = 0;i < seq2.items.length; ++i) {
+      let item = seq2.items[i];
+      if (isPair(item))
+        continue;
+      else if (isMap(item)) {
+        if (item.items.length > 1)
+          onError("Each pair must have its own sequence indicator");
+        const pair = item.items[0] || new Pair(new Scalar(null));
+        if (item.commentBefore)
+          pair.key.commentBefore = pair.key.commentBefore ? `${item.commentBefore}
+${pair.key.commentBefore}` : item.commentBefore;
+        if (item.comment) {
+          const cn = pair.value ?? pair.key;
+          cn.comment = cn.comment ? `${item.comment}
+${cn.comment}` : item.comment;
+        }
+        item = pair;
+      }
+      seq2.items[i] = isPair(item) ? item : new Pair(item);
+    }
+  } else
+    onError("Expected a sequence for this tag");
+  return seq2;
+}
+function createPairs(schema3, iterable, ctx) {
+  const { replacer } = ctx;
+  const pairs = new YAMLSeq(schema3);
+  pairs.tag = "tag:yaml.org,2002:pairs";
+  let i = 0;
+  if (iterable && Symbol.iterator in Object(iterable))
+    for (let it of iterable) {
+      if (typeof replacer === "function")
+        it = replacer.call(iterable, String(i++), it);
+      let key, value;
+      if (Array.isArray(it)) {
+        if (it.length === 2) {
+          key = it[0];
+          value = it[1];
+        } else
+          throw new TypeError(`Expected [key, value] tuple: ${it}`);
+      } else if (it && it instanceof Object) {
+        const keys = Object.keys(it);
+        if (keys.length === 1) {
+          key = keys[0];
+          value = it[key];
+        } else {
+          throw new TypeError(`Expected tuple with one key, not ${keys.length} keys`);
+        }
+      } else {
+        key = it;
+      }
+      pairs.items.push(createPair(key, value, ctx));
+    }
+  return pairs;
+}
+var pairs = {
+  collection: "seq",
+  default: false,
+  tag: "tag:yaml.org,2002:pairs",
+  resolve: resolvePairs,
+  createNode: createPairs
+};
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/schema/yaml-1.1/omap.js
+class YAMLOMap extends YAMLSeq {
+  constructor() {
+    super();
+    this.add = YAMLMap.prototype.add.bind(this);
+    this.delete = YAMLMap.prototype.delete.bind(this);
+    this.get = YAMLMap.prototype.get.bind(this);
+    this.has = YAMLMap.prototype.has.bind(this);
+    this.set = YAMLMap.prototype.set.bind(this);
+    this.tag = YAMLOMap.tag;
+  }
+  toJSON(_, ctx) {
+    if (!ctx)
+      return super.toJSON(_);
+    const map2 = new Map;
+    if (ctx?.onCreate)
+      ctx.onCreate(map2);
+    for (const pair of this.items) {
+      let key, value;
+      if (isPair(pair)) {
+        key = toJS(pair.key, "", ctx);
+        value = toJS(pair.value, key, ctx);
+      } else {
+        key = toJS(pair, "", ctx);
+      }
+      if (map2.has(key))
+        throw new Error("Ordered maps must not include duplicate keys");
+      map2.set(key, value);
+    }
+    return map2;
+  }
+  static from(schema3, iterable, ctx) {
+    const pairs2 = createPairs(schema3, iterable, ctx);
+    const omap = new this;
+    omap.items = pairs2.items;
+    return omap;
+  }
+}
+YAMLOMap.tag = "tag:yaml.org,2002:omap";
+var omap = {
+  collection: "seq",
+  identify: (value) => value instanceof Map,
+  nodeClass: YAMLOMap,
+  default: false,
+  tag: "tag:yaml.org,2002:omap",
+  resolve(seq2, onError) {
+    const pairs2 = resolvePairs(seq2, onError);
+    const seenKeys = [];
+    for (const { key } of pairs2.items) {
+      if (isScalar(key)) {
+        if (seenKeys.includes(key.value)) {
+          onError(`Ordered maps must not include duplicate keys: ${key.value}`);
+        } else {
+          seenKeys.push(key.value);
+        }
+      }
+    }
+    return Object.assign(new YAMLOMap, pairs2);
+  },
+  createNode: (schema3, iterable, ctx) => YAMLOMap.from(schema3, iterable, ctx)
+};
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/schema/yaml-1.1/bool.js
+function boolStringify({ value, source }, ctx) {
+  const boolObj = value ? trueTag : falseTag;
+  if (source && boolObj.test.test(source))
+    return source;
+  return value ? ctx.options.trueStr : ctx.options.falseStr;
+}
+var trueTag = {
+  identify: (value) => value === true,
+  default: true,
+  tag: "tag:yaml.org,2002:bool",
+  test: /^(?:Y|y|[Yy]es|YES|[Tt]rue|TRUE|[Oo]n|ON)$/,
+  resolve: () => new Scalar(true),
+  stringify: boolStringify
+};
+var falseTag = {
+  identify: (value) => value === false,
+  default: true,
+  tag: "tag:yaml.org,2002:bool",
+  test: /^(?:N|n|[Nn]o|NO|[Ff]alse|FALSE|[Oo]ff|OFF)$/,
+  resolve: () => new Scalar(false),
+  stringify: boolStringify
+};
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/schema/yaml-1.1/float.js
+var floatNaN2 = {
+  identify: (value) => typeof value === "number",
+  default: true,
+  tag: "tag:yaml.org,2002:float",
+  test: /^(?:[-+]?\.(?:inf|Inf|INF)|\.nan|\.NaN|\.NAN)$/,
+  resolve: (str) => str.slice(-3).toLowerCase() === "nan" ? NaN : str[0] === "-" ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY,
+  stringify: stringifyNumber
+};
+var floatExp2 = {
+  identify: (value) => typeof value === "number",
+  default: true,
+  tag: "tag:yaml.org,2002:float",
+  format: "EXP",
+  test: /^[-+]?(?:[0-9][0-9_]*)?(?:\.[0-9_]*)?[eE][-+]?[0-9]+$/,
+  resolve: (str) => parseFloat(str.replace(/_/g, "")),
+  stringify(node) {
+    const num = Number(node.value);
+    return isFinite(num) ? num.toExponential() : stringifyNumber(node);
+  }
+};
+var float2 = {
+  identify: (value) => typeof value === "number",
+  default: true,
+  tag: "tag:yaml.org,2002:float",
+  test: /^[-+]?(?:[0-9][0-9_]*)?\.[0-9_]*$/,
+  resolve(str) {
+    const node = new Scalar(parseFloat(str.replace(/_/g, "")));
+    const dot = str.indexOf(".");
+    if (dot !== -1) {
+      const f = str.substring(dot + 1).replace(/_/g, "");
+      if (f[f.length - 1] === "0")
+        node.minFractionDigits = f.length;
+    }
+    return node;
+  },
+  stringify: stringifyNumber
+};
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/schema/yaml-1.1/int.js
+var intIdentify3 = (value) => typeof value === "bigint" || Number.isInteger(value);
+function intResolve2(str, offset, radix, { intAsBigInt }) {
+  const sign = str[0];
+  if (sign === "-" || sign === "+")
+    offset += 1;
+  str = str.substring(offset).replace(/_/g, "");
+  if (intAsBigInt) {
+    switch (radix) {
+      case 2:
+        str = `0b${str}`;
+        break;
+      case 8:
+        str = `0o${str}`;
+        break;
+      case 16:
+        str = `0x${str}`;
+        break;
+    }
+    const n2 = BigInt(str);
+    return sign === "-" ? BigInt(-1) * n2 : n2;
+  }
+  const n = parseInt(str, radix);
+  return sign === "-" ? -1 * n : n;
+}
+function intStringify2(node, radix, prefix) {
+  const { value } = node;
+  if (intIdentify3(value)) {
+    const str = value.toString(radix);
+    return value < 0 ? "-" + prefix + str.substr(1) : prefix + str;
+  }
+  return stringifyNumber(node);
+}
+var intBin = {
+  identify: intIdentify3,
+  default: true,
+  tag: "tag:yaml.org,2002:int",
+  format: "BIN",
+  test: /^[-+]?0b[0-1_]+$/,
+  resolve: (str, _onError, opt) => intResolve2(str, 2, 2, opt),
+  stringify: (node) => intStringify2(node, 2, "0b")
+};
+var intOct2 = {
+  identify: intIdentify3,
+  default: true,
+  tag: "tag:yaml.org,2002:int",
+  format: "OCT",
+  test: /^[-+]?0[0-7_]+$/,
+  resolve: (str, _onError, opt) => intResolve2(str, 1, 8, opt),
+  stringify: (node) => intStringify2(node, 8, "0")
+};
+var int2 = {
+  identify: intIdentify3,
+  default: true,
+  tag: "tag:yaml.org,2002:int",
+  test: /^[-+]?[0-9][0-9_]*$/,
+  resolve: (str, _onError, opt) => intResolve2(str, 0, 10, opt),
+  stringify: stringifyNumber
+};
+var intHex2 = {
+  identify: intIdentify3,
+  default: true,
+  tag: "tag:yaml.org,2002:int",
+  format: "HEX",
+  test: /^[-+]?0x[0-9a-fA-F_]+$/,
+  resolve: (str, _onError, opt) => intResolve2(str, 2, 16, opt),
+  stringify: (node) => intStringify2(node, 16, "0x")
+};
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/schema/yaml-1.1/set.js
+class YAMLSet extends YAMLMap {
+  constructor(schema3) {
+    super(schema3);
+    this.tag = YAMLSet.tag;
+  }
+  add(key) {
+    let pair;
+    if (isPair(key))
+      pair = key;
+    else if (key && typeof key === "object" && "key" in key && "value" in key && key.value === null)
+      pair = new Pair(key.key, null);
+    else
+      pair = new Pair(key, null);
+    const prev = findPair(this.items, pair.key);
+    if (!prev)
+      this.items.push(pair);
+  }
+  get(key, keepPair) {
+    const pair = findPair(this.items, key);
+    return !keepPair && isPair(pair) ? isScalar(pair.key) ? pair.key.value : pair.key : pair;
+  }
+  set(key, value) {
+    if (typeof value !== "boolean")
+      throw new Error(`Expected boolean value for set(key, value) in a YAML set, not ${typeof value}`);
+    const prev = findPair(this.items, key);
+    if (prev && !value) {
+      this.items.splice(this.items.indexOf(prev), 1);
+    } else if (!prev && value) {
+      this.items.push(new Pair(key));
+    }
+  }
+  toJSON(_, ctx) {
+    return super.toJSON(_, ctx, Set);
+  }
+  toString(ctx, onComment, onChompKeep) {
+    if (!ctx)
+      return JSON.stringify(this);
+    if (this.hasAllNullValues(true))
+      return super.toString(Object.assign({}, ctx, { allNullValues: true }), onComment, onChompKeep);
+    else
+      throw new Error("Set items must all have null values");
+  }
+  static from(schema3, iterable, ctx) {
+    const { replacer } = ctx;
+    const set = new this(schema3);
+    if (iterable && Symbol.iterator in Object(iterable))
+      for (let value of iterable) {
+        if (typeof replacer === "function")
+          value = replacer.call(iterable, value, value);
+        set.items.push(createPair(value, null, ctx));
+      }
+    return set;
+  }
+}
+YAMLSet.tag = "tag:yaml.org,2002:set";
+var set = {
+  collection: "map",
+  identify: (value) => value instanceof Set,
+  nodeClass: YAMLSet,
+  default: false,
+  tag: "tag:yaml.org,2002:set",
+  createNode: (schema3, iterable, ctx) => YAMLSet.from(schema3, iterable, ctx),
+  resolve(map2, onError) {
+    if (isMap(map2)) {
+      if (map2.hasAllNullValues(true))
+        return Object.assign(new YAMLSet, map2);
+      else
+        onError("Set items must all have null values");
+    } else
+      onError("Expected a mapping for this tag");
+    return map2;
+  }
+};
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/schema/yaml-1.1/timestamp.js
+function parseSexagesimal(str, asBigInt) {
+  const sign = str[0];
+  const parts = sign === "-" || sign === "+" ? str.substring(1) : str;
+  const num = (n) => asBigInt ? BigInt(n) : Number(n);
+  const res = parts.replace(/_/g, "").split(":").reduce((res2, p) => res2 * num(60) + num(p), num(0));
+  return sign === "-" ? num(-1) * res : res;
+}
+function stringifySexagesimal(node) {
+  let { value } = node;
+  let num = (n) => n;
+  if (typeof value === "bigint")
+    num = (n) => BigInt(n);
+  else if (isNaN(value) || !isFinite(value))
+    return stringifyNumber(node);
+  let sign = "";
+  if (value < 0) {
+    sign = "-";
+    value *= num(-1);
+  }
+  const _60 = num(60);
+  const parts = [value % _60];
+  if (value < 60) {
+    parts.unshift(0);
+  } else {
+    value = (value - parts[0]) / _60;
+    parts.unshift(value % _60);
+    if (value >= 60) {
+      value = (value - parts[0]) / _60;
+      parts.unshift(value);
+    }
+  }
+  return sign + parts.map((n) => String(n).padStart(2, "0")).join(":").replace(/000000\d*$/, "");
+}
+var intTime = {
+  identify: (value) => typeof value === "bigint" || Number.isInteger(value),
+  default: true,
+  tag: "tag:yaml.org,2002:int",
+  format: "TIME",
+  test: /^[-+]?[0-9][0-9_]*(?::[0-5]?[0-9])+$/,
+  resolve: (str, _onError, { intAsBigInt }) => parseSexagesimal(str, intAsBigInt),
+  stringify: stringifySexagesimal
+};
+var floatTime = {
+  identify: (value) => typeof value === "number",
+  default: true,
+  tag: "tag:yaml.org,2002:float",
+  format: "TIME",
+  test: /^[-+]?[0-9][0-9_]*(?::[0-5]?[0-9])+\.[0-9_]*$/,
+  resolve: (str) => parseSexagesimal(str, false),
+  stringify: stringifySexagesimal
+};
+var timestamp = {
+  identify: (value) => value instanceof Date,
+  default: true,
+  tag: "tag:yaml.org,2002:timestamp",
+  test: RegExp("^([0-9]{4})-([0-9]{1,2})-([0-9]{1,2})" + "(?:" + "(?:t|T|[ \\t]+)" + "([0-9]{1,2}):([0-9]{1,2}):([0-9]{1,2}(\\.[0-9]+)?)" + "(?:[ \\t]*(Z|[-+][012]?[0-9](?::[0-9]{2})?))?" + ")?$"),
+  resolve(str) {
+    const match = str.match(timestamp.test);
+    if (!match)
+      throw new Error("!!timestamp expects a date, starting with yyyy-mm-dd");
+    const [, year, month, day, hour, minute, second] = match.map(Number);
+    const millisec = match[7] ? Number((match[7] + "00").substr(1, 3)) : 0;
+    let date = Date.UTC(year, month - 1, day, hour || 0, minute || 0, second || 0, millisec);
+    const tz = match[8];
+    if (tz && tz !== "Z") {
+      let d = parseSexagesimal(tz, false);
+      if (Math.abs(d) < 30)
+        d *= 60;
+      date -= 60000 * d;
+    }
+    return new Date(date);
+  },
+  stringify: ({ value }) => value?.toISOString().replace(/(T00:00:00)?\.000Z$/, "") ?? ""
+};
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/schema/yaml-1.1/schema.js
+var schema3 = [
+  map,
+  seq,
+  string,
+  nullTag,
+  trueTag,
+  falseTag,
+  intBin,
+  intOct2,
+  int2,
+  intHex2,
+  floatNaN2,
+  floatExp2,
+  float2,
+  binary,
+  merge,
+  omap,
+  pairs,
+  set,
+  intTime,
+  floatTime,
+  timestamp
+];
+
+// download/quilt-arcade/node_modules/yaml/browser/dist/schema/tags.js
+var schemas = new Map([
+  ["core", schema],
+  ["failsafe", [map, seq, string]],
+  ["json", schema2],
+  ["yaml11", schema3],
+  ["yaml-1.1", schema3]
+]);
+// download/quilt-arcade/node_modules/yaml/browser/dist/parse/cst-visit.js
+var BREAK2 = Symbol("break visit");
+var SKIP2 = Symbol("skip children");
+var REMOVE2 = Symbol("remove item");
+function visit2(cst, visitor) {
+  if ("type" in cst && cst.type === "document")
+    cst = { start: cst.start, value: cst.value };
+  _visit(Object.freeze([]), cst, visitor);
+}
+visit2.BREAK = BREAK2;
+visit2.SKIP = SKIP2;
+visit2.REMOVE = REMOVE2;
+visit2.itemAtPath = (cst, path) => {
+  let item = cst;
+  for (const [field, index] of path) {
+    const tok = item?.[field];
+    if (tok && "items" in tok) {
+      item = tok.items[index];
+    } else
+      return;
+  }
+  return item;
+};
+visit2.parentCollection = (cst, path) => {
+  const parent = visit2.itemAtPath(cst, path.slice(0, -1));
+  const field = path[path.length - 1][0];
+  const coll = parent?.[field];
+  if (coll && "items" in coll)
+    return coll;
+  throw new Error("Parent collection not found");
+};
+function _visit(path, item, visitor) {
+  let ctrl = visitor(item, path);
+  if (typeof ctrl === "symbol")
+    return ctrl;
+  for (const field of ["key", "value"]) {
+    const token = item[field];
+    if (token && "items" in token) {
+      for (let i = 0;i < token.items.length; ++i) {
+        const ci = _visit(Object.freeze(path.concat([[field, i]])), token.items[i], visitor);
+        if (typeof ci === "number")
+          i = ci - 1;
+        else if (ci === BREAK2)
+          return BREAK2;
+        else if (ci === REMOVE2) {
+          token.items.splice(i, 1);
+          i -= 1;
+        }
+      }
+      if (typeof ctrl === "function" && field === "key")
+        ctrl = ctrl(item, path);
+    }
+  }
+  return typeof ctrl === "function" ? ctrl(item, path) : ctrl;
+}
+// download/quilt-arcade/node_modules/yaml/browser/dist/parse/lexer.js
+var hexDigits = new Set("0123456789ABCDEFabcdef");
+var tagChars = new Set("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-#;/?:@&=+$_.!~*'()");
+var flowIndicatorChars = new Set(",[]{}");
+var invalidAnchorChars = new Set(` ,[]{}
+\r	`);
+// download/quilt-arcade/shared/kit.mjs
+var v = (id, value, description) => ({ id, kind: "value", value, description });
+var law = (id, value, description) => v(id, value, description);
+var prog = (id, code, description, deps = []) => ({ id, kind: "program", code, description, deps });
+var formula = (id, expr, description) => ({ id, kind: "formula", expr, description });
+var listenerCell = (id, watch, action, condition, description) => ({ id, kind: "listener", watch, action, ...condition ? { condition } : {}, description });
+var GENESIS_PREV = "0".repeat(16);
+var SNIPPETS = {
+  rng: `
+    const rng = (seed) => { let a = (seed ?? 1) >>> 0;
+      return () => { a |= 0; a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };`,
+  witness: `
+    const fnv1a64 = (s) => { let h = 0xcbf29ce484222325n;
+      const p = 0x100000001b3n, m = 0xffffffffffffffffn;
+      for (let i = 0; i < s.length; i++) { h ^= BigInt(s.charCodeAt(i)); h = (h * p) & m; }
+      return h.toString(16).padStart(16, '0'); };
+    const canon = (row) => { const s = {}; for (const k of Object.keys(row).sort()) s[k] = row[k];
+      return JSON.stringify(s); };
+    const GENESIS_PREV = '0'.repeat(16);`
+};
+
+// download/quilt-arcade/games/connect4/sheet.mjs
+var COLS = "ABCDEFG";
+var sqName = (r, c) => COLS[c] + (r + 1);
+var AXES = [[0, 1], [1, 0], [1, 1], [1, -1]];
+var C4 = `
+const COLS = 'ABCDEFG';
+const ROWS = 6, NCOLS = 7;
+const sq = (r, c) => COLS[c] + (r + 1);
+const opp = (p) => p === 'B' ? 'W' : 'B';
+const AXES = ${JSON.stringify(AXES)};
+// R3 port: the lowest empty row of a column (-1 = full)
+const dropRow = (grid, c) => { for (let r = ROWS - 1; r >= 0; r--) if (grid[r][c] === '') return r; return -1; };
+// R4 port: the contiguous own run through (r,c) if it reaches 4 — returns the squares
+const winLine = (grid, r, c, p) => {
+  for (const d of AXES) {
+    const cells = [[r, c]];
+    for (const s of [1, -1]) {
+      let rr = r + s * d[0], cc = c + s * d[1];
+      while (rr >= 0 && rr < ROWS && cc >= 0 && cc < NCOLS && grid[rr][cc] === p) { cells.push([rr, cc]); rr += s * d[0]; cc += s * d[1]; }
+    }
+    if (cells.length >= 4)
+      return cells.map(([a, b]) => ({ r: a, c: b, sq: sq(a, b) }))
+        .sort((x, y) => (x.r - y.r) || (x.c - y.c));
+  }
+  return null;
+};
+// every 4-window through (r,c): [own, enemy, empty] counts after a sim drop
+const windowsThrough = (grid, r, c, p) => {
+  const out = [];
+  for (const d of AXES) for (let s = -3; s <= 0; s++) {
+    const w = [];
+    for (let i = 0; i < 4; i++) {
+      const rr = r + (s + i) * d[0], cc = c + (s + i) * d[1];
+      if (rr < 0 || rr >= ROWS || cc < 0 || cc >= NCOLS) { w.push('X'); continue; }
+      w.push(grid[rr][cc]);
+    }
+    if (!w.includes('X')) out.push(w);
+  }
+  return out;
+};`;
+var BOOK = `CONNECT FOUR — RULEBOOK v1
+
+R1 (column)      A disc is played by naming a COLUMN (A-G). A drop that does
+                 not name an existing column is not a move; the board is
+                 unchanged.
+
+R2 (full)        A column holding 6 discs is FULL and accepts no further
+                 disc. Playing a full column is refused and the board is
+                 unchanged.
+
+R3 (gravity)     A played disc FALLS to the lowest empty square of its
+                 column (row 6 first). The disc never stops mid-column and
+                 never moves sideways. Every accepted play names its landing
+                 square.
+
+R4 (connect)     If after landing the mover owns FOUR (or more) discs in a
+                 straight line — horizontal, vertical, or either diagonal —
+                 the mover wins and the board is closed. The rule names the
+                 exact squares of the line.
+
+R5 (draw)        If all 42 squares hold discs and no line was completed, the
+                 game is a draw and the board is closed. A closed board
+                 refuses every move.
+
+R6 (threat)      ADVISORY: after every accepted play the sheet reports, for
+                 the side to move, every column that would win the game
+                 immediately (WIN NOW), and every column the OPPONENT would
+                 win immediately if given the turn (MUST BLOCK). Threats do
+                 not change the game; they are announced.
+
+TURN (derived)   Black moves first; turns alternate strictly. Refused moves
+                 never consume the turn.`;
+var CHK_R1 = `
+${C4}
+const c = input?.c;
+const fired = !(Number.isInteger(c) && c >= 0 && c < NCOLS);
+return { fired, why: fired
+  ? 'Column ' + JSON.stringify(input?.c) + ' does not exist — play names a column A-G.'
+  : 'Column ' + COLS[c] + ' exists and accepts a disc.' };`;
+var CHK_R2 = `
+${C4}
+const c = input?.c, grid = input?.grid;
+const row = dropRow(grid, c);
+const fired = row === -1;
+return { fired, row, why: fired
+  ? 'Column ' + COLS[c] + ' is FULL (6 discs) — it accepts no further disc.'
+  : 'Column ' + COLS[c] + ' has room; the disc lands at ' + sq(row, c) + '.' };`;
+var CHK_R3 = `
+${C4}
+// gravity is not a prohibition but the EFFECT of acceptance — this checker
+// names the landing square the arbiter must use.
+const c = input?.c, grid = input?.grid;
+const row = dropRow(grid, c);
+return { fired: true, row,
+  why: row >= 0 ? 'The disc falls to ' + sq(row, c) + ' (lowest empty square of column ' + COLS[c] + ').'
+                : 'No landing square — the column is full.' };`;
+var CHK_R4 = `
+${C4}
+const grid = input?.grid, r = input?.r, c = input?.c, player = input?.player;
+const line = winLine(grid, r, c, player);
+if (!line) return { fired: false, line: null, why: 'No four-in-line through ' + sq(r, c) + ' yet.' };
+return { fired: true, line: line.map(x => x.sq),
+  why: (player === 'B' ? 'BLACK' : 'WHITE') + ' owns four in a line: ' + line.map(x => x.sq).join(' - ') + '. Game over.' };`;
+var CHK_R5 = `
+${C4}
+const grid = input?.grid;
+let n = 0;
+for (const row of grid) for (const x of row) if (x !== '') n++;
+const fired = n === ROWS * NCOLS;
+return { fired, n,
+  why: fired ? 'All 42 squares hold discs and no line was completed — the game is a draw.'
+             : 'Board holds ' + n + '/42 discs.' };`;
+var CHK_R6 = `
+${C4}
+// ADVISORY: scan all columns for immediate wins for either side.
+const grid = input?.grid, mover = input?.player;
+const winNow = [], mustBlock = [];
+for (let c = 0; c < NCOLS; c++) {
+  const row = dropRow(grid, c);
+  if (row < 0) continue;
+  const g2 = grid.map(x => x.slice());
+  g2[row][c] = mover;
+  if (winLine(g2, row, c, mover)) winNow.push(COLS[c]);
+  const g3 = grid.map(x => x.slice());
+  g3[row][c] = opp(mover);
+  if (winLine(g3, row, c, opp(mover))) mustBlock.push(COLS[c]);
+}
+const parts = [];
+if (winNow.length) parts.push('WIN NOW at column ' + winNow.join(',') + ' — take it.');
+if (mustBlock.length) parts.push('MUST BLOCK column ' + mustBlock.join(',') + ' — the opponent wins there next turn.');
+return { fired: parts.length > 0, winNow, mustBlock,
+  why: parts.length ? parts.join(' ') : 'No immediate threats on the board.' };`;
+var ARBITER = `
+// THE REFEREE — sequences rule cells, applies gravity, keeps the ledger.
+${C4}
+const seq = input?.seq ?? 0;
+const c = input?.c, player = input?.player;
+const last = (await runtime.get('match.seq')).data;
+if (seq <= last) return { ok: false, rule: 'DUP', text: 'stale request (seq ' + seq + ' <= ' + last + ') — nothing happened.' };
+const done = async (verdict) => {
+  const log = (await runtime.get('log.events')).data;
+  await runtime.set('log.events', [...log.slice(-199), {
+    ts: Date.now(), kind: verdict.ok ? 'apply' : 'refuse', rule: verdict.rule ?? null, seq, text: verdict.text }]);
+  await runtime.set('rules.verdict', { ...verdict, seq, ts: Date.now() });
+  return verdict;
+};
+let grid = (await runtime.get('board.grid')).data.map(row => row.slice());
+const phase = (await runtime.get('phase.current')).data;
+const fired = [];
+
+if (phase !== 'play') {
+  const r5 = (await runtime.call('rule.R5.check', { grid, seq })).data;
+  await runtime.set('rule.R5.verdict', { ...r5, ts: Date.now() });
+  await runtime.set('rules.fired', ['R5']);
+  return done({ ok: false, rule: 'R5', text: 'Move refused — ' + r5.why });
+}
+
+const r1 = (await runtime.call('rule.R1.check', { c, seq })).data;
+await runtime.set('rule.R1.verdict', { ...r1, ts: Date.now() });
+fired.push('R1');
+if (r1.fired) { await runtime.set('rules.fired', fired); return done({ ok: false, rule: 'R1', text: r1.why }); }
+
+const r2 = (await runtime.call('rule.R2.check', { c, grid, seq })).data;
+await runtime.set('rule.R2.verdict', { ...r2, ts: Date.now() });
+fired.push('R2');
+if (r2.fired) { await runtime.set('rules.fired', fired); return done({ ok: false, rule: 'R2', text: r2.why }); }
+
+// ACCEPTED — R3 gravity names the landing square; the arbiter applies it.
+const r3 = (await runtime.call('rule.R3.check', { c, grid, seq })).data;
+await runtime.set('rule.R3.verdict', { ...r3, ts: Date.now() });
+fired.push('R3');
+const row = r3.row;
+const trace = [{ sq: sq(row, c), from: '', to: player, ray: 'drop', r: row, c }];
+await runtime.set('board.r' + (row + 1) + 'c' + (c + 1), player);
+grid[row][c] = player;
+await runtime.set('board.grid', grid);
+await runtime.set('flip.trace', trace);
+
+// R4 connect-four
+const r4 = (await runtime.call('rule.R4.check', { grid, r: row, c, player, seq })).data;
+await runtime.set('rule.R4.verdict', { ...r4, ts: Date.now() });
+if (r4.fired) {
+  fired.push('R4');
+  await runtime.set('rules.fired', fired);
+  await runtime.set('phase.current', 'over');
+  await runtime.set('winner.current', player);
+  await runtime.set('winner.line', r4.line);
+  await runtime.set('match.seq', seq);
+  return done({ ok: true, rule: 'R4', text: r4.why, fired, trace, line: r4.line });
+}
+
+// R5 draw
+const r5 = (await runtime.call('rule.R5.check', { grid, seq })).data;
+await runtime.set('rule.R5.verdict', { ...r5, ts: Date.now() });
+if (r5.fired) {
+  fired.push('R5');
+  await runtime.set('rules.fired', fired);
+  await runtime.set('phase.current', 'over');
+  await runtime.set('winner.current', 'draw');
+  await runtime.set('match.seq', seq);
+  return done({ ok: true, rule: 'R5', text: r5.why, fired, trace });
+}
+
+// R6 advisory threat scan (for the bubble, never blocking)
+const r6 = (await runtime.call('rule.R6.check', { grid, player: opp(player), seq })).data;
+await runtime.set('rule.R6.verdict', { ...r6, ts: Date.now() });
+if (r6.fired) fired.push('R6');
+
+// TURN alternates strictly
+await runtime.set('turn.current', opp(player));
+await runtime.set('match.seq', seq);
+await runtime.set('rules.fired', fired);
+const tail = r6.fired ? ' ' + r6.why : '';
+return done({ ok: true, rule: 'R3', text: (player === 'B' ? 'BLACK' : 'WHITE') + ' drops ' + COLS[c] + ' -> ' + sq(row, c) + '.' + tail, fired, trace });`;
+var DISPATCH = `
+const ev = input ?? {};
+let req = null;
+if (ev.c != null && ev.r == null) req = ev;
+else if (ev.value?.c != null) req = ev.value;
+else if (caller?.metadata?.current?.c != null) req = caller.metadata.current;
+else req = (await runtime.get('move.request')).data;
+if (!req || req.c == null) return { skipped: true };
+return (await runtime.call('move.arbiter', req)).data;`;
+var FEATURES = `
+${C4}
+// features of dropping in column c (scaled ~[-2, 2])
+const grid = input?.grid, c = input?.c, player = input?.player;
+const row = dropRow(grid, c);
+if (row < 0) return null;
+const g2 = grid.map(x => x.slice());
+g2[row][c] = player;
+const win = winLine(g2, row, c, player) ? 1 : 0;
+let mine3 = 0, mine2 = 0;
+for (const w of windowsThrough(g2, row, c, player)) {
+  const mine = w.filter(x => x === player).length, empty = w.filter(x => x === '').length;
+  if (mine === 3 && empty === 1) mine3++;
+  if (mine === 2 && empty === 2) mine2++;
+}
+// opponent threats that remain after my move (anywhere on the board, their turn next)
+let theirs3 = 0;
+for (let cc = 0; cc < NCOLS; cc++) {
+  const rr = dropRow(g2, cc);
+  if (rr < 0) continue;
+  const g3 = g2.map(x => x.slice());
+  g3[rr][cc] = opp(player);
+  if (winLine(g3, rr, cc, opp(player))) theirs3++;
+}
+const giveAway = theirs3 > 0 ? 1 : 0;
+const center = (3 - Math.abs(c - 3)) / 3;
+return { f: { win, mine3: mine3 / 2, theirs3: theirs3 / 2, center, giveAway }, row };`;
+var CHOOSE = `
+${C4}
+${SNIPPETS.rng}
+const grid = (await runtime.get('board.grid')).data;
+const player = input?.player ?? (await runtime.get('turn.current')).data;
+const weights = input?.weights ?? (await runtime.get('ai.weights')).data;
+const seed = input?.seed ?? 1;
+const phase = (await runtime.get('phase.current')).data;
+if (phase !== 'play') return null;
+const scored = [];
+for (let c = 0; c < NCOLS; c++) {
+  const out = (await runtime.call('ai.features', { grid, c, player, seq: seed + ':' + c })).data;
+  if (!out) continue;
+  let s = 0; for (const k of Object.keys(weights)) s += (weights[k] ?? 0) * (out.f[k] ?? 0);
+  scored.push({ c, col: COLS[c], score: Math.round(s * 1000) / 1000, f: out.f, row: out.row });
+}
+if (!scored.length) return { pass: true, player };
+scored.sort((a, b) => b.score - a.score);
+const rnd = rng(seed * 7919 + r2s(grid));
+const top = scored.slice(0, Math.min(3, scored.length));
+const pick = rnd() < 0.85 ? top[0] : top[Math.floor(rnd() * top.length)];
+return { ...pick, player, considered: scored.length,
+  why: player + ' drops ' + pick.col + ' (score ' + pick.score + ')' };
+function r2s(g) { let h = 0; for (const row of g) for (const x of row) h = (h * 31 + (x === 'B' ? 1 : x === 'W' ? 2 : 0)) | 0; return h >>> 0; }`;
+var LEARN = `
+${SNIPPETS.witness}
+// learn.update input {side} — averaged perceptron + witness receipt.
+const side = input?.side ?? 'B';
+const winner = (await runtime.get('winner.current')).data;
+const s = winner === 'draw' ? 0 : (winner === side ? 1 : -1);
+const alpha = (await runtime.get('learn.alpha')).data;
+const moves = (await runtime.get('ai.move_log')).data;
+const theta = { ...(await runtime.get('ai.weights')).data };
+for (const f of moves) for (const k of Object.keys(theta))
+  theta[k] = Math.max(-8, Math.min(8, theta[k] + alpha * s * (f[k] ?? 0)));
+const gen = (await runtime.get('learn.gen')).data + 1;
+await runtime.set('ai.weights', theta);
+await runtime.set('learn.gen', gen);
+const receipts = (await runtime.get('learn.receipts')).data;
+const hist = receipts.filter(x => x.side === side).slice(0, 9);
+const wins = (s > 0 ? 1 : 0) + hist.filter(x => x.result === 'W').length;
+const rate = Math.round((100 * wins) / (hist.length + 1));
+const prev = receipts.length ? receipts[receipts.length - 1].row_hash : GENESIS_PREV;
+const fields = { seq: gen, side, result: s > 0 ? 'W' : s < 0 ? 'L' : 'D',
+  score_b: (await runtime.get('score.b')).data, score_w: (await runtime.get('score.w')).data,
+  theta_hash: fnv1a64(canon(theta)), win_rate10: rate };
+const row = { ...fields, prev_hash: prev, row_hash: fnv1a64(canon({ ...fields, prev_hash: prev })) };
+await runtime.set('learn.receipts', [...receipts, row]);
+await runtime.set('ai.move_log', []);
+await runtime.set('learn.last', { gen, theta, receipt: row });
+return { gen, theta, result: row.result, win_rate10: rate, receipt: row };`;
+var MATCH_STEP = `
+// one AI ply; input {weights?, seed?, log?}. match.seq is owned by the arbiter.
+const phase = (await runtime.get('phase.current')).data;
+if (phase !== 'play') return { over: true };
+const player = (await runtime.get('turn.current')).data;
+const choice = (await runtime.call('ai.choose', { player, weights: input?.weights, seed: input?.seed ?? 1 })).data;
+if (!choice || choice.pass) return { pass: true, player };
+if (input?.log) {
+  const log = (await runtime.get('ai.move_log')).data;
+  await runtime.set('ai.move_log', [...log, choice.f]);
+}
+return (await runtime.call('move.arbiter', { c: choice.c, player, seq: (await runtime.get('match.seq')).data + 1 })).data;`;
+var NEW_GAME = `
+for (let r = 1; r <= 6; r++) for (let c = 1; c <= 7; c++)
+  await runtime.set('board.r' + r + 'c' + c, '');
+const g = [];
+for (let r = 0; r < 6; r++) { const row = []; for (let c = 0; c < 7; c++) row.push(''); g.push(row); }
+await runtime.set('board.grid', g);
+await runtime.set('turn.current', 'B');
+await runtime.set('phase.current', 'play');
+await runtime.set('winner.current', null);
+await runtime.set('winner.line', null);
+await runtime.set('flip.trace', []);
+for (const n of ['R1','R2','R3','R4','R5','R6']) await runtime.set('rule.' + n + '.verdict', null);
+await runtime.set('rules.fired', []);
+await runtime.set('rules.verdict', null);
+await runtime.set('match.seq', 0);
+await runtime.set('move.request', null);
+await runtime.set('ai.move_log', []);
+const log = (await runtime.get('log.events')).data;
+await runtime.set('log.events', [...log.slice(-199), { ts: Date.now(), kind: 'new_game', text: 'board reset — BLACK to move' }]);
+return { ok: true };`;
+function buildSheet() {
+  const cells = [];
+  cells.push(v("rules.book", BOOK, "the complete ruleset; every clause is ported 1:1 to a rule.N.check cell"));
+  for (const [n, clause] of [
+    ["R1", "R1 (column): a play names a column A-G; anything else is not a move."],
+    ["R2", "R2 (full): a column of 6 discs accepts no further disc."],
+    ["R3", "R3 (gravity): the disc falls to the lowest empty square of its column."],
+    ["R4", "R4 (connect): four own discs in a straight line win; the rule names the squares."],
+    ["R5", "R5 (draw): 42 discs with no line is a draw; closed boards refuse everything."],
+    ["R6", "R6 (threat): advisory scan — WIN NOW and MUST BLOCK columns for the side to move."]
+  ]) {
+    cells.push(law(`rule.${n}.law`, clause, `clause ${n} quoted from rules.book`));
+    cells.push(v(`rule.${n}.verdict`, null, `last evaluation of clause ${n} (bubble UI reads this)`));
+  }
+  cells.push(v("rules.fired", [], "clauses that came into play for the last action"));
+  cells.push(v("rules.verdict", null, "master verdict of the last pushed move"));
+  for (let r = 0;r < 6; r++)
+    for (let c = 0;c < 7; c++)
+      cells.push(v(`board.r${r + 1}c${c + 1}`, "", `square ${sqName(r, c)}: '' | B | W`));
+  cells.push(v("board.grid", Array.from({ length: 6 }, () => Array(7).fill("")), "mirror of the 42 board cells"));
+  cells.push(v("flip.trace", [], "the drop trace of the last accepted move (animation reads this)"));
+  cells.push(v("turn.current", "B", "B | W"));
+  cells.push(v("phase.current", "play", "play | over"));
+  cells.push(v("winner.current", null, "B | W | draw | null"));
+  cells.push(v("winner.line", null, "winning squares (R4) for highlighting"));
+  cells.push(v("match.seq", 0, "monotonic request sequence"));
+  cells.push(formula("score.b", `board.grid.flat().filter(x => x === 'B').length`, "BLACK discs on the board"));
+  cells.push(formula("score.w", `board.grid.flat().filter(x => x === 'W').length`, "WHITE discs on the board"));
+  cells.push(prog("rule.R1.check", CHK_R1, "R1 port: column exists", []));
+  cells.push(prog("rule.R2.check", CHK_R2, "R2 port: column not full", []));
+  cells.push(prog("rule.R3.check", CHK_R3, "R3 port: gravity names the landing square", []));
+  cells.push(prog("rule.R4.check", CHK_R4, "R4 port: connect-four line through the landing square", []));
+  cells.push(prog("rule.R5.check", CHK_R5, "R5 port: full board draw", []));
+  cells.push(prog("rule.R6.check", CHK_R6, "R6 port: WIN NOW / MUST BLOCK advisory scan", []));
+  cells.push(prog("move.arbiter", ARBITER, "THE REFEREE — sequences rule cells, applies gravity, keeps the ledger", ["move.request"]));
+  cells.push(prog("move.dispatch", DISPATCH, "push trampoline: move.request -> move.arbiter", ["move.request"]));
+  cells.push(listenerCell("move.push", ["move.request"], "move.dispatch", null, "push of one value drives the cascade"));
+  cells.push(v("move.request", null, "UI writes {c,player,seq} here — the entire input surface"));
+  cells.push(v("ai.weights", { win: 6, mine3: 0, theirs3: 0, center: 0.4, giveAway: 0 }, "learner policy weights (theta) — updated by learn.update"));
+  cells.push(v("ai.fixed_weights", { win: 6, mine3: 0, theirs3: 0, center: 0.4, giveAway: 0 }, "frozen baseline opponent weights (never learns — the control group)"));
+  cells.push(v("ai.move_log", [], "feature vectors of the learner's moves this game"));
+  cells.push(prog("ai.features", FEATURES, "features of a candidate column drop (pure)", []));
+  cells.push(prog("ai.choose", CHOOSE, "score columns by dot(theta, features); seeded tie-break", ["board.grid", "turn.current", "phase.current", "ai.weights"]));
+  cells.push(v("learn.alpha", 0.1, "perceptron learning rate"));
+  cells.push(v("learn.gen", 0, "generations learned so far"));
+  cells.push(v("learn.receipts", [], "fnv1a64 hash-chained witness receipts: one per game"));
+  cells.push(v("learn.last", null, "snapshot of the latest update"));
+  cells.push(prog("learn.update", LEARN, "perceptron update + witness receipt (call once per finished game)", ["winner.current", "score.b", "score.w", "ai.move_log", "ai.weights"]));
+  cells.push(prog("match.step", MATCH_STEP, "one AI ply (input {weights?, seed?, log?})", ["phase.current", "turn.current", "ai.weights"]));
+  cells.push(prog("new_game", NEW_GAME, "reset the board, keep the learning ledger", ["board.grid"]));
+  cells.push(v("log.events", [], "append-only audit (cap 200)"));
+  return { id: "connect4", title: "Quilt Arcade — Connect Four (gravity + threats as cells)", cells };
+}
+
+// download/quilt-arcade/shared/viewer.mjs
+function mountGame(root, driver) {
+  root.classList.add("qa-root");
+  root.innerHTML = `
+    <style>${CSS}</style>
+    <header class="qa-head">
+      <div class="qa-brand">
+        <span class="qa-logo">⬢</span>
+        <div>
+          <div class="qa-title">${driver.title}</div>
+          <div class="qa-tag">${driver.tagline ?? ""}</div>
+        </div>
+      </div>
+      <div class="qa-controls">
+        <div class="qa-modes" role="tablist">
+          <button data-mode="hvh" class="qa-btn">Human ↔ Human</button>
+          <button data-mode="hvae" class="qa-btn">Human ↔ AI</button>
+          <button data-mode="cvc" class="qa-btn">AI ↔ AI</button>
+        </div>
+        <label class="qa-learn ${driver.hasLearning ? "" : "qa-hide"}">
+          <input type="checkbox" id="qa-learn-cb" checked> learning
+        </label>
+        <select id="qa-speed" class="qa-btn qa-speed" title="animation speed">
+          <option value="700">slow</option>
+          <option value="300" selected>normal</option>
+          <option value="90">fast</option>
+          <option value="0">instant</option>
+        </select>
+        <button id="qa-step" class="qa-btn">step ▸</button>
+        <button id="qa-new" class="qa-btn qa-primary">new game</button>
+        <button id="qa-playpause" class="qa-btn qa-hide">⏸ pause</button>
+      </div>
+    </header>
+    <div class="qa-grid-wrap">
+      <div class="qa-board-col">
+        <div class="qa-scorebar" id="qa-scores"></div>
+        <div class="qa-board-outer"><div id="qa-board"></div></div>
+        <div class="qa-bubble ${"qa-bubble-idle"}" id="qa-bubble">
+          <span class="qa-bubble-chip" id="qa-bubble-chip">referee</span>
+          <span class="qa-bubble-text" id="qa-bubble-text">push a value — click any cell.</span>
+        </div>
+        <div class="qa-learn-strip" id="qa-learnstrip"></div>
+      </div>
+      <div class="qa-side-col">
+        <section class="qa-panel">
+          <h2>rulebook <span class="qa-hint">clauses flash when they fire</span></h2>
+          <div id="qa-book"></div>
+        </section>
+        <section class="qa-panel qa-grow">
+          <h2>cell ledger <span class="qa-hint">log.events — the sheet's audit trail</span></h2>
+          <div id="qa-log"></div>
+        </section>
+      </div>
+    </div>`;
+  const $ = (id) => root.querySelector("#" + id);
+  const boardEl = $("qa-board"), bookEl = $("qa-book"), logEl = $("qa-log");
+  const bubbleEl = $("qa-bubble"), chipEl = $("qa-bubble-chip"), textEl = $("qa-bubble-text");
+  const scoresEl = $("qa-scores"), learnEl = $("qa-learnstrip");
+  let mode = "hvae";
+  let speed = 300;
+  let playing = false, tickBusy = false, playTimer = null;
+  let prevFaces = null;
+  let rngState = 987654321;
+  const rnd = () => {
+    rngState |= 0;
+    rngState = rngState + 1831565813 | 0;
+    let t = Math.imul(rngState ^ rngState >>> 15, 1 | rngState);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+  function buildBoard() {
+    boardEl.innerHTML = "";
+    const { rows, cols, colLabels, rowLabels } = driver;
+    boardEl.style.gridTemplateColumns = `2ch repeat(${cols}, var(--cell))`;
+    boardEl.style.setProperty("--cell", (driver.cellSize ?? 52) + "px");
+    const corner = document.createElement("div");
+    corner.className = "qa-corner";
+    boardEl.appendChild(corner);
+    for (let c = 0;c < cols; c++) {
+      const el = document.createElement("div");
+      el.className = "qa-collabel" + (driver.columnClickable ? " qa-colclick" : "");
+      el.textContent = colLabels[c];
+      if (driver.columnClickable) {
+        el.onclick = () => humanMove(0, c, el);
+      }
+      boardEl.appendChild(el);
+    }
+    for (let r = 0;r < rows; r++) {
+      const rl = document.createElement("div");
+      rl.className = "qa-rowlabel";
+      rl.textContent = rowLabels ? rowLabels[r] : r + 1;
+      boardEl.appendChild(rl);
+      for (let c = 0;c < cols; c++) {
+        const cell = document.createElement("div");
+        cell.className = "qa-cell";
+        cell.dataset.r = r;
+        cell.dataset.c = c;
+        cell.onclick = () => humanMove(r, c, cell);
+        boardEl.appendChild(cell);
+      }
+    }
+  }
+  function cellEl(r, c) {
+    return boardEl.querySelector(`.qa-cell[data-r="${r}"][data-c="${c}"]`);
+  }
+  function renderCellFace(r, c, face, animate) {
+    const el = cellEl(r, c);
+    if (!el)
+      return;
+    el.className = "qa-cell" + (face.cls ? " qa-" + face.cls : "") + (animate ? " qa-pop" : "");
+    el.innerHTML = face.glyph ? `<span>${face.glyph}</span>` : "";
+    if (face.title)
+      el.title = face.title;
+  }
+  function renderBook(snap) {
+    bookEl.innerHTML = "";
+    for (const clause of snap.rules) {
+      const el = document.createElement("div");
+      el.className = "qa-clause" + (clause.fired ? clause.ok === false ? " qa-clause-bad" : " qa-clause-fired" : "");
+      el.innerHTML = `<b>${clause.id}</b> ${escapeHtml(clause.law)}`;
+      if (clause.fired && clause.why)
+        el.title = clause.why;
+      bookEl.appendChild(el);
+    }
+    bookEl.parentElement.querySelector("h2").classList.remove("qa-flash");
+  }
+  function renderLog(snap) {
+    logEl.innerHTML = "";
+    for (const ev of snap.events.slice(-14).reverse()) {
+      const el = document.createElement("div");
+      el.className = "qa-logline" + (ev.kind === "refuse" ? " qa-log-refuse" : ev.kind === "apply" ? " qa-log-apply" : "");
+      el.textContent = ev.text ?? JSON.stringify(ev).slice(0, 90);
+      logEl.appendChild(el);
+    }
+  }
+  function renderScores(snap) {
+    scoresEl.innerHTML = "";
+    for (const s of snap.scores ?? []) {
+      const el = document.createElement("div");
+      el.className = "qa-score" + (s.emph ? " qa-score-emph" : "");
+      el.innerHTML = `<span class="qa-score-label">${escapeHtml(s.label)}</span><span class="qa-score-value">${escapeHtml(String(s.value))}</span>`;
+      scoresEl.appendChild(el);
+    }
+    const turn = document.createElement("div");
+    turn.className = "qa-score qa-turn";
+    turn.innerHTML = snap.phase === "over" ? `<span class="qa-score-label">game over</span><span class="qa-score-value">${escapeHtml(String(snap.winner ?? ""))}</span>` : `<span class="qa-score-label">to move</span><span class="qa-score-value">${escapeHtml(String(snap.turn ?? ""))}</span>`;
+    scoresEl.appendChild(turn);
+  }
+  function renderLearnStrip(snap) {
+    if (!snap.theta) {
+      learnEl.classList.add("qa-hide");
+      return;
+    }
+    learnEl.classList.remove("qa-hide");
+    const max = Math.max(1, ...snap.theta.map((t) => Math.abs(t.value)));
+    const bars = snap.theta.map((t) => {
+      const pct = Math.round(Math.abs(t.value) / max * 50);
+      const neg = t.value < 0;
+      return `<div class="qa-theta-row" title="${escapeHtml(t.key)} = ${t.value.toFixed(2)}">
+        <span class="qa-theta-key">${escapeHtml(t.key)}</span>
+        <div class="qa-theta-bar"><div class="qa-theta-fill ${neg ? "qa-neg" : "qa-pos"}" style="${neg ? "right:50%" : "left:50%"};width:${pct}%"></div><div class="qa-theta-mid"></div></div>
+        <span class="qa-theta-val">${t.value >= 0 ? "+" : ""}${t.value.toFixed(1)}</span>
+      </div>`;
+    }).join("");
+    learnEl.innerHTML = `<div class="qa-learn-head"><span>generation <b>${snap.gen ?? 0}</b></span>
+      <span>win rate (10) <b>${snap.winRate ?? "–"}%</b></span><span class="qa-hint">policy weights θ — live</span></div>${bars}`;
+  }
+  function renderBubble(snap) {
+    const v2 = snap.bubble;
+    if (!v2)
+      return;
+    bubbleEl.className = "qa-bubble " + (v2.ok ? "qa-bubble-ok" : "qa-bubble-refuse");
+    chipEl.textContent = v2.rule ?? "referee";
+    textEl.textContent = v2.text ?? "";
+    bubbleEl.classList.remove("qa-flash");
+    bubbleEl.offsetWidth;
+    bubbleEl.classList.add("qa-flash");
+  }
+  function applyCascade(snap) {
+    const faces = snap.cells;
+    const trace = snap.lastTrace ?? [];
+    if (!prevFaces || !trace.length || speed === 0) {
+      for (let r = 0;r < driver.rows; r++)
+        for (let c = 0;c < driver.cols; c++)
+          renderCellFace(r, c, faces[r][c], false);
+      prevFaces = faces.map((row) => row.map((f) => f.glyph + "|" + f.cls));
+      return;
+    }
+    const traceKeys = new Set(trace.map((t) => t.r + ":" + t.c));
+    for (let r = 0;r < driver.rows; r++)
+      for (let c = 0;c < driver.cols; c++)
+        if (!traceKeys.has(r + ":" + c))
+          renderCellFace(r, c, faces[r][c], false);
+    const step = Math.max(30, Math.min(220, speed));
+    trace.forEach((t, i) => {
+      setTimeout(() => {
+        renderCellFace(t.r, t.c, faces[t.r][t.c], true);
+        prevFaces = null;
+      }, i * step);
+    });
+  }
+  let lastSeqRendered = null;
+  async function refresh(animate = true) {
+    const snap = await driver.snapshot();
+    if (snap.seq === lastSeqRendered)
+      return;
+    const first = lastSeqRendered === null;
+    lastSeqRendered = snap.seq;
+    renderScores(snap);
+    renderBook(snap);
+    renderLog(snap);
+    renderLearnStrip(snap);
+    renderBubble(snap);
+    if (animate && !first)
+      applyCascade(snap);
+    else {
+      for (let r = 0;r < driver.rows; r++)
+        for (let c = 0;c < driver.cols; c++)
+          renderCellFace(r, c, snap.cells[r][c], false);
+      prevFaces = snap.cells.map((row) => row.map((f) => f.glyph + "|" + f.cls));
+    }
+    if (snap.line)
+      for (const sq of snap.line) {
+        const el = cellElBySq(sq);
+        if (el)
+          el.classList.add("qa-winline");
+      }
+    if (snap.legal && mode !== "cvc") {
+      for (const sq of snap.legal) {
+        const el = cellElBySq(sq);
+        if (el)
+          el.classList.add("qa-hint");
+      }
+    }
+    return snap;
+  }
+  function cellElBySq(sq) {
+    const m = /^([A-Z]+)([0-9]+)$/.exec(sq);
+    if (!m)
+      return null;
+    const c = driver.colLabels.indexOf(m[1]);
+    const r = Number(m[2]) - 1;
+    return cellEl(r, c);
+  }
+  async function humanMove(r, c, el) {
+    try {
+      if (mode === "cvc" || tickBusy)
+        return;
+      const snap = await driver.snapshot();
+      if (snap.phase !== "play") {
+        await driver.newGame();
+        await refresh();
+        return;
+      }
+      if (mode === "hvae" && snap.turn !== driver.humanColor)
+        return;
+      const res = await driver.click(r, c);
+      await refresh();
+      if (res && res.refused && el) {
+        el.classList.add("qa-shake");
+        setTimeout(() => el.classList.remove("qa-shake"), 500);
+      }
+      await maybeAIReply();
+    } catch (err) {
+      console.error("humanMove failed:", err);
+    }
+  }
+  async function maybeAIReply() {
+    if (mode !== "hvae")
+      return;
+    const snap = await driver.snapshot();
+    if (snap.phase !== "play")
+      return;
+    if (snap.turn === driver.humanColor)
+      return;
+    tickBusy = true;
+    setTimeout(async () => {
+      try {
+        await driver.step(rnd);
+        await refresh();
+      } finally {
+        tickBusy = false;
+      }
+    }, Math.max(120, speed));
+  }
+  async function cvcTick() {
+    if (tickBusy)
+      return;
+    tickBusy = true;
+    try {
+      const snap = driver.snapshot();
+      if (snap.phase !== "play") {
+        const learnOn = root.querySelector("#qa-learn-cb")?.checked ?? false;
+        if (learnOn && driver.hasLearning)
+          await driver.learn(rnd);
+        driver.newGame();
+        lastSeqRendered = null;
+        await refresh();
+        return;
+      }
+      await driver.step(rnd);
+      await refresh();
+    } finally {
+      tickBusy = false;
+    }
+  }
+  function setPlaying(on) {
+    playing = on;
+    const pp = root.querySelector("#qa-playpause");
+    if (on) {
+      pp.classList.remove("qa-hide");
+      pp.textContent = "⏸ pause";
+      const period = Math.max(90, speed * 2 + 120);
+      playTimer = setInterval(cvcTick, period);
+    } else {
+      if (playTimer)
+        clearInterval(playTimer);
+      playTimer = null;
+      pp.textContent = "▶ resume";
+    }
+  }
+  root.querySelectorAll("[data-mode]").forEach((btn) => {
+    btn.onclick = async () => {
+      mode = btn.dataset.mode;
+      root.querySelectorAll("[data-mode]").forEach((b) => b.classList.toggle("qa-active", b === btn));
+      if (playing)
+        setPlaying(false);
+      driver.setMode(mode);
+      await driver.newGame();
+      lastSeqRendered = null;
+      await refresh();
+      if (mode === "cvc")
+        setPlaying(true);
+    };
+  });
+  root.querySelector("#qa-speed").onchange = (e) => {
+    speed = Number(e.target.value);
+    if (playing) {
+      setPlaying(false);
+      setPlaying(true);
+    }
+  };
+  root.querySelector("#qa-new").onclick = async () => {
+    await driver.newGame();
+    lastSeqRendered = null;
+    await refresh();
+  };
+  root.querySelector("#qa-step").onclick = async () => {
+    if (mode !== "cvc") {
+      await maybeAIReply();
+      return;
+    }
+    await cvcTick();
+    await refresh();
+  };
+  root.querySelector("#qa-playpause").onclick = () => setPlaying(!playing);
+  buildBoard();
+  root.querySelector('[data-mode="hvae"]').classList.add("qa-active");
+  driver.setMode("hvae");
+  (async () => {
+    await refresh();
+  })();
+  return { refresh };
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[m]);
+}
+var CSS = `
+.qa-root { --cell: 52px; --ink: #16130e; --paper: #f6f2ea; --panel: #fffdf8; --line: #d8d0c0;
+  --accent: #b3541e; --good: #1e7d4f; --bad: #b3361e; --dark: #1c1913;
+  font-family: 'Avenir Next', 'Segoe UI', system-ui, sans-serif; color: var(--ink);
+  background: var(--paper); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+  box-shadow: 0 10px 40px rgba(28,25,19,.12); }
+.qa-head { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center;
+  padding: 14px 18px; background: var(--dark); color: #f3ead9; }
+.qa-brand { display: flex; gap: 12px; align-items: center; }
+.qa-logo { font-size: 26px; color: #e8a13c; }
+.qa-title { font-weight: 800; letter-spacing: .02em; font-size: 17px; }
+.qa-tag { font-size: 11.5px; opacity: .72; font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
+.qa-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.qa-btn { border: 1px solid #4a443a; background: #262219; color: #e8ddc8; padding: 6px 10px;
+  border-radius: 8px; font-size: 12px; cursor: pointer; font-family: inherit; }
+.qa-btn:hover { background: #332d22; }
+.qa-btn.qa-active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.qa-btn.qa-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.qa-learn { font-size: 12px; display: flex; gap: 5px; align-items: center; color: #d8cdb4; }
+.qa-hide { display: none !important; }
+.qa-grid-wrap { display: grid; grid-template-columns: minmax(0, auto) minmax(300px, 1fr); gap: 16px; padding: 16px 18px 20px; }
+@media (max-width: 980px) { .qa-grid-wrap { grid-template-columns: 1fr; } }
+.qa-board-col { display: flex; flex-direction: column; gap: 10px; }
+.qa-scorebar { display: flex; gap: 10px; flex-wrap: wrap; }
+.qa-score { background: var(--panel); border: 1px solid var(--line); border-radius: 9px;
+  padding: 6px 12px; display: flex; gap: 8px; align-items: baseline; }
+.qa-score-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #7a705d; }
+.qa-score-value { font-weight: 800; font-size: 15px; font-variant-numeric: tabular-nums; }
+.qa-turn { border-color: var(--accent); }
+.qa-board-outer { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+#qa-board { display: grid; gap: 2px; width: max-content; }
+.qa-corner { }
+.qa-collabel, .qa-rowlabel { display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: #8a7f6a; font-family: ui-monospace, Menlo, monospace; font-weight: 700; }
+.qa-colclick { cursor: pointer; border-radius: 4px; }
+.qa-colclick:hover { background: #efe6d4; color: var(--accent); }
+.qa-cell { width: var(--cell); height: var(--cell); background: #efe9db; border: 1px solid #ddd3bf;
+  display: flex; align-items: center; justify-content: center; font-size: calc(var(--cell) * .52);
+  cursor: pointer; user-select: none; border-radius: 4px; transition: background .15s; position: relative; }
+.qa-cell:hover { background: #e4dbc6; }
+.qa-cell span { line-height: 1; }
+.qa-b { background: #2a2620; color: #f6f2ea; }
+.qa-b:hover { background: #2a2620; }
+.qa-w { background: #fffdf8; color: #1c1913; box-shadow: inset 0 0 0 2px #cfc5ae; }
+.qa-empty-x { color: #b9ad93; font-size: calc(var(--cell) * .4); }
+.qa-pop { animation: qa-pop .3s ease; }
+@keyframes qa-pop { 0% { transform: scale(.55) rotate(-6deg); } 70% { transform: scale(1.12); } 100% { transform: scale(1); } }
+.qa-shake { animation: qa-shake .4s; }
+@keyframes qa-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+.qa-winline { outline: 3px solid var(--accent); outline-offset: -3px; z-index: 2; }
+.qa-hintcell::after { content: ''; position: absolute; width: 22%; height: 22%; border-radius: 50%;
+  background: rgba(179,84,30,.4); }
+.qa-bubble { border: 1px solid var(--line); border-left: 5px solid #b9ad93; background: var(--panel);
+  border-radius: 10px; padding: 10px 14px; font-size: 13.5px; display: flex; gap: 10px; align-items: baseline; }
+.qa-bubble-ok { border-left-color: var(--good); }
+.qa-bubble-refuse { border-left-color: var(--bad); background: #fdf3ef; }
+.qa-bubble-chip { font-family: ui-monospace, Menlo, monospace; font-weight: 800; font-size: 11px;
+  background: #efe6d4; padding: 2px 7px; border-radius: 6px; white-space: nowrap; }
+.qa-bubble-refuse .qa-bubble-chip { background: #f5d5c9; color: var(--bad); }
+.qa-bubble-ok .qa-bubble-chip { background: #cfe7db; color: var(--good); }
+.qa-bubble-text { line-height: 1.45; }
+.qa-flash { animation: qa-flash .55s ease; }
+@keyframes qa-flash { 0% { background-color: #fff3d6; } 100% { background-color: inherit; } }
+.qa-learn-strip { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+.qa-learn-head { display: flex; gap: 16px; font-size: 12px; color: #7a705d; margin-bottom: 6px; align-items: baseline; }
+.qa-learn-head b { font-size: 14px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.qa-theta-row { display: grid; grid-template-columns: 9ch 1fr 5ch; gap: 8px; align-items: center; margin: 2px 0; }
+.qa-theta-key { font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: #6d6350; }
+.qa-theta-bar { position: relative; height: 9px; background: #efe9db; border-radius: 4px; overflow: hidden; }
+.qa-theta-mid { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #cfc5ae; }
+.qa-theta-fill { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
+.qa-pos { background: var(--good); }
+.qa-neg { background: var(--bad); }
+.qa-theta-val { font-family: ui-monospace, Menlo, monospace; font-size: 11px; text-align: right; }
+.qa-side-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.qa-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.qa-panel h2 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #7a705d;
+  display: flex; justify-content: space-between; align-items: baseline; }
+.qa-hint { font-size: 10.5px; text-transform: none; letter-spacing: 0; color: #a79a80; font-weight: 400; }
+.qa-clause { font-size: 12.5px; padding: 5px 8px; border-radius: 6px; margin: 2px 0; line-height: 1.4; }
+.qa-clause b { font-family: ui-monospace, Menlo, monospace; color: var(--accent); margin-right: 4px; }
+.qa-clause-fired { background: #e3f1e9; outline: 1px solid #9ed0b8; }
+.qa-clause-bad { background: #f9e4dc; outline: 1px solid #e0a894; }
+.qa-log { font-family: ui-monospace, Menlo, monospace; font-size: 11px; line-height: 1.55;
+  max-height: 300px; overflow-y: auto; }
+.qa-logline { padding: 2px 6px; border-left: 2px solid #ddd3bf; margin: 1px 0; color: #55503f;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qa-log-refuse { border-left-color: var(--bad); color: var(--bad); }
+.qa-log-apply { border-left-color: var(--good); }
+.qa-grow { flex: 1; min-height: 160px; }
+`;
+
+// download/quilt-arcade/shared/driver.mjs
+function createDriver(cfg) {
+  const {
+    engine,
+    shape,
+    ruleIds,
+    requestFor,
+    faces,
+    scores,
+    hints,
+    thetaKeys,
+    humanColor = "B",
+    randomSide,
+    tagline,
+    cellSize,
+    columnClickable
+  } = cfg;
+  const colLabels = shape.colLabels;
+  const sqOf = (r, c) => colLabels[c] + (r + 1);
+  const rcOf = (sq) => {
+    const m = /^([A-Z]+)([0-9]+)$/.exec(sq);
+    if (!m)
+      return null;
+    return { r: Number(m[2]) - 1, c: colLabels.indexOf(m[1]) };
+  };
+  const get = async (id) => {
+    try {
+      return (await engine.get(id)).data;
+    } catch {
+      return;
+    }
+  };
+  const hasLearning = thetaKeys != null;
+  let mode = "hvae";
+  let learnerSide = humanColor === "X" ? "X" : "B";
+  async function push(req) {
+    const seq2 = (await get("match.seq") ?? 0) + 1;
+    await engine.set("move.request", { ...req, seq: seq2 });
+    let verdict = await get("rules.verdict");
+    if (verdict?.seq !== seq2) {
+      const out = await engine.call("move.dispatch", { ...req, seq: seq2 });
+      verdict = out?.data ?? out;
+    }
+    return verdict ?? { ok: false, rule: "ERR", text: "no verdict returned" };
+  }
+  return {
+    rows: shape.rows,
+    cols: shape.cols,
+    colLabels,
+    rowLabels: shape.rowLabels ?? null,
+    cellSize: shape.cellSize ?? cellSize,
+    columnClickable: shape.columnClickable ?? columnClickable,
+    humanColor,
+    tagline,
+    hasLearning,
+    title: cfg.title,
+    tagline: cfg.tagline,
+    async snapshot() {
+      const grid = await get("board.grid");
+      const turn = await get("turn.current");
+      const phase = await get("phase.current");
+      const winner = await get("winner.current");
+      const line = await get("winner.line");
+      const fired = await get("rules.fired") ?? [];
+      const verdict = await get("rules.verdict");
+      const events = await get("log.events") ?? [];
+      const rules = [];
+      for (const id of ruleIds) {
+        const law2 = await get(`rule.${id}.law`);
+        const vd = await get(`rule.${id}.verdict`);
+        rules.push({
+          id,
+          law: law2 ?? "",
+          fired: fired.includes(id) && phase !== undefined,
+          ok: verdict ? !!verdict.ok : true,
+          why: vd?.why ?? ""
+        });
+      }
+      for (const cl of rules)
+        cl.fired = fired.includes(cl.id);
+      const cells = grid.map((row, r) => row.map((v2, c) => faces(v2, r, c)));
+      let theta = null;
+      let gen = null, winRate = null;
+      if (hasLearning) {
+        const w = await get("ai.weights") ?? {};
+        theta = thetaKeys.map((k) => ({ key: k, value: Number(w[k] ?? 0) }));
+        gen = await get("learn.gen");
+        const receipts = await get("learn.receipts") ?? [];
+        winRate = receipts.length ? receipts[receipts.length - 1].win_rate10 : null;
+      }
+      const legal = hints ? await hints(get, grid, turn) : null;
+      const trace = [];
+      if (verdict?.trace)
+        for (const t of verdict.trace) {
+          const rc = typeof t.sq === "string" ? rcOf(t.sq) : null;
+          if (rc)
+            trace.push({ r: rc.r, c: rc.c });
+        }
+      return {
+        cells,
+        turn,
+        phase,
+        winner,
+        line,
+        rules,
+        bubble: verdict ? { ok: !!verdict.ok, rule: verdict.rule, text: verdict.text, seq: verdict.seq } : null,
+        events,
+        theta,
+        gen,
+        winRate,
+        legal,
+        lastTrace: trace,
+        seq: String(verdict?.seq ?? 0) + ":" + String(gen ?? 0) + ":" + String(phase)
+      };
+    },
+    async click(r, c) {
+      const player = await get("turn.current");
+      const req = requestFor(r, c, player);
+      if (!req)
+        return { refused: true, text: "not a playable square" };
+      const verdict = await push(req);
+      return { refused: !verdict.ok };
+    },
+    async step(rnd) {
+      const side = await get("turn.current");
+      if (randomSide && mode === "cvc" && side !== learnerSide) {
+        const grid = await get("board.grid");
+        const req = randomSide(rnd, side, grid);
+        if (req) {
+          await push(req);
+          return;
+        }
+      }
+      const isLearner = mode === "cvc" && hasLearning && side === learnerSide;
+      const fixed = await get("ai.fixed_weights");
+      const weights = isLearner ? undefined : hasLearning && fixed ? fixed : undefined;
+      const seed = 1 + Math.floor(rnd() * 1e9);
+      await engine.call("match.step", { weights, seed, log: isLearner });
+    },
+    async learn(rnd) {
+      if (!hasLearning)
+        return;
+      await engine.call("learn.update", { side: learnerSide });
+      const gen = await get("learn.gen") ?? 0;
+      learnerSide = gen % 2 === 0 ? "B" : "W";
+      if (humanColor === "X")
+        learnerSide = learnerSide === "B" ? "X" : "O";
+    },
+    setMode(m) {
+      mode = m;
+      learnerSide = humanColor === "X" ? "X" : "B";
+    },
+    async newGame() {
+      await engine.call("new_game");
+      const gen = await get("learn.gen") ?? 0;
+      learnerSide = gen % 2 === 0 ? "B" : "W";
+      if (humanColor === "X")
+        learnerSide = learnerSide === "B" ? "X" : "O";
+    }
+  };
+}
+
+// download/quilt-arcade/games/connect4/viewer.mjs
+var engine = new QuiltEngine("view-connect4", { eager: true });
+engine.loadSheet(buildSheet());
+var dropRow = (grid, c) => {
+  for (let r = 5;r >= 0; r--)
+    if (grid[r][c] === "")
+      return r;
+  return -1;
+};
+var driver = createDriver({
+  engine,
+  title: "Connect Four — gravity as a rule cell",
+  tagline: "89 cells · WIN NOW / MUST BLOCK advisories · learnable threat denial",
+  shape: { rows: 6, cols: 7, colLabels: "ABCDEFG".split(""), cellSize: 58, columnClickable: true },
+  ruleIds: ["R1", "R2", "R3", "R4", "R5", "R6"],
+  humanColor: "B",
+  thetaKeys: ["win", "mine3", "theirs3", "center", "giveAway"],
+  requestFor: (r, c, player) => ({ c, player }),
+  faces: (v2) => v2 === "B" ? { glyph: "●", cls: "b" } : v2 === "W" ? { glyph: "○", cls: "w" } : { glyph: "", cls: "" },
+  scores: async (get) => [
+    { label: "● black", value: await get("score.b"), emph: await get("turn.current") === "B" },
+    { label: "○ white", value: await get("score.w"), emph: await get("turn.current") === "W" }
+  ],
+  hints: async (get, grid) => {
+    const out = [];
+    for (let c = 0;c < 7; c++) {
+      const r = dropRow(grid, c);
+      if (r >= 0)
+        out.push("ABCDEFG"[c] + (r + 1));
+    }
+    return out;
+  }
+});
+window.__engine = engine;
+window.__driver = driver;
+mountGame(document.getElementById("app"), driver);
+
+</script>
+</body>
+</html>

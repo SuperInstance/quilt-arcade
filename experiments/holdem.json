@@ -1,0 +1,1310 @@
+{
+  "game": "holdem",
+  "hands": 150,
+  "block": 25,
+  "alpha": 0.12,
+  "theta0": {
+    "1": {
+      "aggro": 0.6,
+      "tight": 0,
+      "bluff": 0.3,
+      "sticky": 0.2,
+      "adapt": 0.2
+    },
+    "2": {
+      "aggro": 0.6,
+      "tight": 0,
+      "bluff": 0.3,
+      "sticky": 0.2,
+      "adapt": 0.2
+    }
+  },
+  "blocks": [
+    {
+      "hands": 25,
+      "stacks": [
+        90,
+        112,
+        98
+      ],
+      "th1": {
+        "aggro": 0.701,
+        "tight": 0.017,
+        "bluff": 0.3,
+        "sticky": 0.175,
+        "adapt": 0.2
+      },
+      "th2": {
+        "aggro": 0.74,
+        "tight": 0.019,
+        "bluff": 0.3,
+        "sticky": 0.183,
+        "adapt": 0.2
+      },
+      "fish_bb": -5,
+      "learners_bb": 5
+    },
+    {
+      "hands": 50,
+      "stacks": [
+        58,
+        189,
+        53
+      ],
+      "th1": {
+        "aggro": 1.187,
+        "tight": 0.021,
+        "bluff": 0.3,
+        "sticky": 0.165,
+        "adapt": 0.2
+      },
+      "th2": {
+        "aggro": 0.942,
+        "tight": 0.117,
+        "bluff": 0.3,
+        "sticky": 0.029,
+        "adapt": 0.2
+      },
+      "fish_bb": -21,
+      "learners_bb": 21
+    },
+    {
+      "hands": 75,
+      "stacks": [
+        67,
+        259,
+        155
+      ],
+      "th1": {
+        "aggro": 1.74,
+        "tight": 0.138,
+        "bluff": 0.3,
+        "sticky": 0.008,
+        "adapt": 0.2
+      },
+      "th2": {
+        "aggro": 1.337,
+        "tight": 0.117,
+        "bluff": 0.3,
+        "sticky": 0.029,
+        "adapt": 0.2
+      },
+      "fish_bb": -16.5,
+      "learners_bb": 107
+    },
+    {
+      "hands": 100,
+      "stacks": [
+        41,
+        216,
+        224
+      ],
+      "th1": {
+        "aggro": 2.5,
+        "tight": 0.245,
+        "bluff": 0.3,
+        "sticky": -0.12,
+        "adapt": 0.2
+      },
+      "th2": {
+        "aggro": 2.05,
+        "tight": 0.142,
+        "bluff": 0.3,
+        "sticky": 0.038,
+        "adapt": 0.2
+      },
+      "fish_bb": -29.5,
+      "learners_bb": 120
+    },
+    {
+      "hands": 125,
+      "stacks": [
+        53,
+        419,
+        193
+      ],
+      "th1": {
+        "aggro": 2.5,
+        "tight": 0.329,
+        "bluff": 0.3,
+        "sticky": -0.291,
+        "adapt": 0.2
+      },
+      "th2": {
+        "aggro": 2.5,
+        "tight": 0.287,
+        "bluff": 0.3,
+        "sticky": -0.253,
+        "adapt": 0.2
+      },
+      "fish_bb": -23.5,
+      "learners_bb": 206
+    },
+    {
+      "hands": 150,
+      "stacks": [
+        81,
+        545,
+        323
+      ],
+      "th1": {
+        "aggro": 2.5,
+        "tight": 0.454,
+        "bluff": 0.3,
+        "sticky": -0.544,
+        "adapt": 0.2
+      },
+      "th2": {
+        "aggro": 2.5,
+        "tight": 0.43,
+        "bluff": 0.3,
+        "sticky": -0.4,
+        "adapt": 0.2
+      },
+      "fish_bb": -9.5,
+      "learners_bb": 334
+    }
+  ],
+  "nudge_count": 152,
+  "nudge_sample": [
+    {
+      "hand": 120,
+      "seat": 1,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "flop raise paid off (hand net 10.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 10.5bb)"
+        }
+      ]
+    },
+    {
+      "hand": 120,
+      "seat": 2,
+      "nudges": [
+        {
+          "key": "sticky",
+          "delta": -0.046,
+          "why": "turn chase lost -> call less"
+        },
+        {
+          "key": "tight",
+          "delta": 0.023,
+          "why": "loose call taxed"
+        }
+      ]
+    },
+    {
+      "hand": 121,
+      "seat": 1,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "flop raise paid off (hand net 17bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "flop raise paid off (hand net 17bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 17bb)"
+        }
+      ]
+    },
+    {
+      "hand": 121,
+      "seat": 2,
+      "nudges": [
+        {
+          "key": "sticky",
+          "delta": -0.048,
+          "why": "flop chase lost -> call less"
+        },
+        {
+          "key": "tight",
+          "delta": 0.024,
+          "why": "loose call taxed"
+        }
+      ]
+    },
+    {
+      "hand": 122,
+      "seat": 1,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "flop raise paid off (hand net 101bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "flop raise paid off (hand net 101bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "flop raise paid off (hand net 101bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "flop raise paid off (hand net 101bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "flop raise paid off (hand net 101bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "flop raise paid off (hand net 101bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "flop raise paid off (hand net 101bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 101bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "river raise paid off (hand net 101bb)"
+        }
+      ]
+    },
+    {
+      "hand": 122,
+      "seat": 2,
+      "nudges": [
+        {
+          "key": "sticky",
+          "delta": -0.048,
+          "why": "preflop chase lost -> call less"
+        },
+        {
+          "key": "tight",
+          "delta": 0.024,
+          "why": "loose call taxed"
+        }
+      ]
+    },
+    {
+      "hand": 123,
+      "seat": 1,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.018,
+          "why": "preflop raise paid off (hand net 2.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.018,
+          "why": "flop raise paid off (hand net 2.5bb)"
+        }
+      ]
+    },
+    {
+      "hand": 124,
+      "seat": 1,
+      "nudges": [
+        {
+          "key": "sticky",
+          "delta": -0.005,
+          "why": "preflop chase lost -> call less"
+        },
+        {
+          "key": "tight",
+          "delta": 0.002,
+          "why": "loose call taxed"
+        }
+      ]
+    },
+    {
+      "hand": 125,
+      "seat": 2,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.014,
+          "why": "preflop raise paid off (hand net 2bb)"
+        }
+      ]
+    },
+    {
+      "hand": 126,
+      "seat": 1,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.018,
+          "why": "preflop raise paid off (hand net 2.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.018,
+          "why": "flop raise paid off (hand net 2.5bb)"
+        }
+      ]
+    },
+    {
+      "hand": 127,
+      "seat": 1,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 10.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "river raise paid off (hand net 10.5bb)"
+        }
+      ]
+    },
+    {
+      "hand": 127,
+      "seat": 2,
+      "nudges": [
+        {
+          "key": "tight",
+          "delta": 0.034,
+          "why": "flop aggression unpaid (hand net -9.5bb) -> value tighter"
+        },
+        {
+          "key": "sticky",
+          "delta": -0.046,
+          "why": "turn chase lost -> call less"
+        },
+        {
+          "key": "tight",
+          "delta": 0.023,
+          "why": "loose call taxed"
+        }
+      ]
+    },
+    {
+      "hand": 129,
+      "seat": 1,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.018,
+          "why": "preflop raise paid off (hand net 2.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.018,
+          "why": "flop raise paid off (hand net 2.5bb)"
+        }
+      ]
+    },
+    {
+      "hand": 130,
+      "seat": 1,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "flop raise paid off (hand net 10.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "river raise paid off (hand net 10.5bb)"
+        }
+      ]
+    },
+    {
+      "hand": 130,
+      "seat": 2,
+      "nudges": [
+        {
+          "key": "sticky",
+          "delta": -0.046,
+          "why": "flop chase lost -> call less"
+        },
+        {
+          "key": "tight",
+          "delta": 0.023,
+          "why": "loose call taxed"
+        },
+        {
+          "key": "sticky",
+          "delta": -0.046,
+          "why": "river chase lost -> call less"
+        },
+        {
+          "key": "tight",
+          "delta": 0.023,
+          "why": "loose call taxed"
+        }
+      ]
+    },
+    {
+      "hand": 131,
+      "seat": 1,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "flop raise paid off (hand net 42bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 42bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "river raise paid off (hand net 42bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "river raise paid off (hand net 42bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "river raise paid off (hand net 42bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "river raise paid off (hand net 42bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "river raise paid off (hand net 42bb)"
+        }
+      ]
+    },
+    {
+      "hand": 131,
+      "seat": 2,
+      "nudges": [
+        {
+          "key": "tight",
+          "delta": 0.036,
+          "why": "flop aggression unpaid (hand net -41bb) -> value tighter"
+        }
+      ]
+    },
+    {
+      "hand": 132,
+      "seat": 1,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 35.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 35.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 35.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 35.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 35.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "river raise paid off (hand net 35.5bb)"
+        }
+      ]
+    },
+    {
+      "hand": 133,
+      "seat": 1,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "flop raise paid off (hand net 10.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 10.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "river raise paid off (hand net 10.5bb)"
+        }
+      ]
+    },
+    {
+      "hand": 134,
+      "seat": 2,
+      "nudges": [
+        {
+          "key": "sticky",
+          "delta": -0.005,
+          "why": "preflop chase lost -> call less"
+        },
+        {
+          "key": "tight",
+          "delta": 0.002,
+          "why": "loose call taxed"
+        }
+      ]
+    },
+    {
+      "hand": 136,
+      "seat": 1,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "preflop raise paid off (hand net 40.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 40.5bb)"
+        }
+      ]
+    },
+    {
+      "hand": 137,
+      "seat": 2,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "flop raise paid off (hand net 52.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 52.5bb)"
+        }
+      ]
+    },
+    {
+      "hand": 138,
+      "seat": 1,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.018,
+          "why": "preflop raise paid off (hand net 2.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.018,
+          "why": "flop raise paid off (hand net 2.5bb)"
+        }
+      ]
+    },
+    {
+      "hand": 139,
+      "seat": 1,
+      "nudges": [
+        {
+          "key": "sticky",
+          "delta": -0.048,
+          "why": "preflop chase lost -> call less"
+        },
+        {
+          "key": "tight",
+          "delta": 0.024,
+          "why": "loose call taxed"
+        }
+      ]
+    },
+    {
+      "hand": 139,
+      "seat": 2,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "preflop raise paid off (hand net 51bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "preflop raise paid off (hand net 51bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "preflop raise paid off (hand net 51bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "preflop raise paid off (hand net 51bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "preflop raise paid off (hand net 51bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "preflop raise paid off (hand net 51bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "preflop raise paid off (hand net 51bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "preflop raise paid off (hand net 51bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "flop raise paid off (hand net 51bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 51bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "river raise paid off (hand net 51bb)"
+        }
+      ]
+    },
+    {
+      "hand": 140,
+      "seat": 1,
+      "nudges": [
+        {
+          "key": "sticky",
+          "delta": -0.048,
+          "why": "preflop chase lost -> call less"
+        },
+        {
+          "key": "tight",
+          "delta": 0.024,
+          "why": "loose call taxed"
+        }
+      ]
+    },
+    {
+      "hand": 140,
+      "seat": 2,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "flop raise paid off (hand net 36.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "flop raise paid off (hand net 36.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 36.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 36.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 36.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 36.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 36.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 36.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 36.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 36.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 36.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 36.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 36.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 36.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 36.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 36.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 36.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 36.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "river raise paid off (hand net 36.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "river raise paid off (hand net 36.5bb)"
+        }
+      ]
+    },
+    {
+      "hand": 141,
+      "seat": 1,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.018,
+          "why": "preflop raise paid off (hand net 2.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.018,
+          "why": "flop raise paid off (hand net 2.5bb)"
+        }
+      ]
+    },
+    {
+      "hand": 142,
+      "seat": 1,
+      "nudges": [
+        {
+          "key": "sticky",
+          "delta": -0.005,
+          "why": "preflop chase lost -> call less"
+        },
+        {
+          "key": "tight",
+          "delta": 0.002,
+          "why": "loose call taxed"
+        }
+      ]
+    },
+    {
+      "hand": 142,
+      "seat": 2,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.014,
+          "why": "flop raise paid off (hand net 2bb)"
+        }
+      ]
+    },
+    {
+      "hand": 143,
+      "seat": 1,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.014,
+          "why": "river raise paid off (hand net 2bb)"
+        }
+      ]
+    },
+    {
+      "hand": 145,
+      "seat": 1,
+      "nudges": [
+        {
+          "key": "sticky",
+          "delta": -0.005,
+          "why": "preflop chase lost -> call less"
+        },
+        {
+          "key": "tight",
+          "delta": 0.002,
+          "why": "loose call taxed"
+        }
+      ]
+    },
+    {
+      "hand": 146,
+      "seat": 2,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.018,
+          "why": "flop raise paid off (hand net 2.5bb)"
+        }
+      ]
+    },
+    {
+      "hand": 147,
+      "seat": 1,
+      "nudges": [
+        {
+          "key": "sticky",
+          "delta": -0.01,
+          "why": "preflop chase lost -> call less"
+        },
+        {
+          "key": "tight",
+          "delta": 0.005,
+          "why": "loose call taxed"
+        }
+      ]
+    },
+    {
+      "hand": 147,
+      "seat": 2,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.029,
+          "why": "preflop raise paid off (hand net 4bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.029,
+          "why": "flop raise paid off (hand net 4bb)"
+        }
+      ]
+    },
+    {
+      "hand": 148,
+      "seat": 1,
+      "nudges": [
+        {
+          "key": "sticky",
+          "delta": -0.046,
+          "why": "preflop chase lost -> call less"
+        },
+        {
+          "key": "tight",
+          "delta": 0.023,
+          "why": "loose call taxed"
+        },
+        {
+          "key": "sticky",
+          "delta": -0.046,
+          "why": "flop chase lost -> call less"
+        },
+        {
+          "key": "tight",
+          "delta": 0.023,
+          "why": "loose call taxed"
+        },
+        {
+          "key": "sticky",
+          "delta": -0.046,
+          "why": "turn chase lost -> call less"
+        },
+        {
+          "key": "tight",
+          "delta": 0.023,
+          "why": "loose call taxed"
+        }
+      ]
+    },
+    {
+      "hand": 148,
+      "seat": 2,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "flop raise paid off (hand net 10.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "turn raise paid off (hand net 10.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.072,
+          "why": "river raise paid off (hand net 10.5bb)"
+        }
+      ]
+    },
+    {
+      "hand": 149,
+      "seat": 2,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.018,
+          "why": "flop raise paid off (hand net 2.5bb)"
+        },
+        {
+          "key": "aggro",
+          "delta": 0.018,
+          "why": "turn raise paid off (hand net 2.5bb)"
+        }
+      ]
+    },
+    {
+      "hand": 150,
+      "seat": 1,
+      "nudges": [
+        {
+          "key": "aggro",
+          "delta": 0.014,
+          "why": "turn raise paid off (hand net 2bb)"
+        }
+      ]
+    },
+    {
+      "hand": 150,
+      "seat": 2,
+      "nudges": [
+        {
+          "key": "sticky",
+          "delta": -0.005,
+          "why": "preflop chase lost -> call less"
+        },
+        {
+          "key": "tight",
+          "delta": 0.002,
+          "why": "loose call taxed"
+        }
+      ]
+    }
+  ],
+  "thoughts_sample": [
+    {
+      "hand": 143,
+      "street": "turn",
+      "seat": 1,
+      "text": "P1 [turn] eq 0.23, pot 6 -> CHECK | eq 0.23, checks (roll 0.89 >= p(bet) 0.06)"
+    },
+    {
+      "hand": 143,
+      "street": "river",
+      "seat": 1,
+      "text": "P1 [river] eq 0.68, pot 6 -> RAISE 5 | eq 0.68 vs value line 0.47 -> bet 5 (aggro 2.50, roll 0.68 < 0.94)"
+    },
+    {
+      "hand": 144,
+      "street": "preflop",
+      "seat": 1,
+      "text": "P1 [preflop] eq 0.56, pot 4 -> CHECK | eq 0.56, checks (roll 0.97 >= p(bet) 0.94)"
+    },
+    {
+      "hand": 144,
+      "street": "flop",
+      "seat": 1,
+      "text": "P1 [flop] eq 0.68, pot 4 -> CHECK | eq 0.68, checks (roll 0.96 >= p(bet) 0.94)"
+    },
+    {
+      "hand": 144,
+      "street": "turn",
+      "seat": 1,
+      "text": "P1 [turn] eq 0.55, pot 4 -> CHECK | eq 0.55, checks (roll 1.00 >= p(bet) 0.94)"
+    },
+    {
+      "hand": 144,
+      "street": "river",
+      "seat": 1,
+      "text": "P1 [river] eq 0.66, pot 4 -> RAISE 3 | eq 0.66 vs value line 0.47 -> bet 3 (aggro 2.50, roll 0.72 < 0.94)"
+    },
+    {
+      "hand": 145,
+      "street": "preflop",
+      "seat": 1,
+      "text": "P1 [preflop] eq 0.37, pot 5, facing 1 -> CALL | eq 0.37 >= needed 0.15 (pot odds 0.17, sticky -0.39) -> call 1"
+    },
+    {
+      "hand": 145,
+      "street": "flop",
+      "seat": 1,
+      "text": "P1 [flop] eq 0.24, pot 6 -> CHECK | eq 0.24, checks (roll 0.10 >= p(bet) 0.06)"
+    },
+    {
+      "hand": 145,
+      "street": "turn",
+      "seat": 1,
+      "text": "P1 [turn] eq 0.09, pot 6 -> CHECK | eq 0.09, checks (roll 0.12 >= p(bet) 0.06)"
+    },
+    {
+      "hand": 145,
+      "street": "river",
+      "seat": 1,
+      "text": "P1 [river] eq 0.02, pot 6 -> CHECK | eq 0.02, checks (roll 0.74 >= p(bet) 0.06)"
+    },
+    {
+      "hand": 146,
+      "street": "preflop",
+      "seat": 1,
+      "text": "P1 [preflop] eq 0.33, pot 3, facing 2 -> FOLD | eq 0.33 < needed 0.35 -> fold 2"
+    },
+    {
+      "hand": 147,
+      "street": "preflop",
+      "seat": 1,
+      "text": "P1 [preflop] eq 0.20, pot 10, facing 2 -> CALL | eq 0.20 >= needed 0.15 (pot odds 0.17, sticky -0.40) -> call 2"
+    },
+    {
+      "hand": 147,
+      "street": "flop",
+      "seat": 1,
+      "text": "P1 [flop] eq 0.09, pot 12 -> CHECK | eq 0.09, checks (roll 0.95 >= p(bet) 0.06)"
+    },
+    {
+      "hand": 147,
+      "street": "flop",
+      "seat": 1,
+      "text": "P1 [flop] eq 0.26, pot 21, facing 9 -> FOLD | eq 0.26 < needed 0.26 -> fold 9"
+    },
+    {
+      "hand": 148,
+      "street": "preflop",
+      "seat": 1,
+      "text": "P1 [preflop] eq 0.28, pot 5, facing 1 -> CALL | eq 0.28 >= needed 0.15 (pot odds 0.17, sticky -0.41) -> call 1"
+    },
+    {
+      "hand": 148,
+      "street": "flop",
+      "seat": 1,
+      "text": "P1 [flop] eq 0.14, pot 6 -> CHECK | eq 0.14, checks (roll 0.96 >= p(bet) 0.06)"
+    },
+    {
+      "hand": 148,
+      "street": "flop",
+      "seat": 1,
+      "text": "P1 [flop] eq 0.33, pot 11, facing 5 -> CALL | eq 0.33 >= needed 0.27 (pot odds 0.31, sticky -0.41) -> call 5"
+    },
+    {
+      "hand": 148,
+      "street": "turn",
+      "seat": 1,
+      "text": "P1 [turn] eq 0.35, pot 16 -> CHECK | eq 0.35, checks (roll 0.44 >= p(bet) 0.06)"
+    },
+    {
+      "hand": 148,
+      "street": "turn",
+      "seat": 1,
+      "text": "P1 [turn] eq 0.34, pot 28, facing 12 -> CALL | eq 0.34 >= needed 0.26 (pot odds 0.30, sticky -0.41) -> call 12"
+    },
+    {
+      "hand": 148,
+      "street": "river",
+      "seat": 1,
+      "text": "P1 [river] eq 0.26, pot 40 -> CHECK | eq 0.26, checks (roll 0.56 >= p(bet) 0.06)"
+    },
+    {
+      "hand": 148,
+      "street": "river",
+      "seat": 1,
+      "text": "P1 [river] eq 0.24, pot 70, facing 30 -> FOLD | eq 0.24 < needed 0.26 -> fold 30"
+    },
+    {
+      "hand": 149,
+      "street": "preflop",
+      "seat": 1,
+      "text": "P1 [preflop] eq 0.24, pot 3, facing 2 -> FOLD | eq 0.24 < needed 0.33 -> fold 2"
+    },
+    {
+      "hand": 150,
+      "street": "preflop",
+      "seat": 1,
+      "text": "P1 [preflop] eq 0.35, pot 6 -> CHECK | eq 0.35, checks (roll 0.70 >= p(bet) 0.04)"
+    },
+    {
+      "hand": 150,
+      "street": "flop",
+      "seat": 1,
+      "text": "P1 [flop] eq 0.28, pot 6 -> CHECK | eq 0.28, checks (roll 0.47 >= p(bet) 0.06)"
+    },
+    {
+      "hand": 150,
+      "street": "turn",
+      "seat": 1,
+      "text": "P1 [turn] eq 0.42, pot 6 -> RAISE 5 | eq 0.42 vs value line 0.48 -> bet 5 (aggro 2.50, roll 0.02 < 0.06)"
+    },
+    {
+      "hand": 146,
+      "street": "flop",
+      "seat": 2,
+      "text": "P2 [flop] eq 0.65, pot 4 -> RAISE 3 | eq 0.65 vs value line 0.48 -> bet 3 (aggro 2.50, roll 0.13 < 0.94)"
+    },
+    {
+      "hand": 146,
+      "street": "turn",
+      "seat": 2,
+      "text": "P2 [turn] eq 0.91, pot 10 -> CHECK | eq 0.91, checks (roll 0.97 >= p(bet) 0.94)"
+    },
+    {
+      "hand": 146,
+      "street": "river",
+      "seat": 2,
+      "text": "P2 [river] eq 0.87, pot 10 -> CHECK | eq 0.87, checks (roll 0.95 >= p(bet) 0.94)"
+    },
+    {
+      "hand": 147,
+      "street": "preflop",
+      "seat": 2,
+      "text": "P2 [preflop] eq 0.56, pot 3, facing 2 -> RAISE 4 | eq 0.56 > raise line 0.54 -> raise to 4"
+    },
+    {
+      "hand": 147,
+      "street": "flop",
+      "seat": 2,
+      "text": "P2 [flop] eq 0.63, pot 12 -> RAISE 9 | eq 0.63 vs value line 0.48 -> bet 9 (aggro 2.50, roll 0.75 < 0.94)"
+    },
+    {
+      "hand": 148,
+      "street": "preflop",
+      "seat": 2,
+      "text": "P2 [preflop] eq 0.38, pot 6 -> CHECK | eq 0.38, checks (roll 0.24 >= p(bet) 0.04)"
+    },
+    {
+      "hand": 148,
+      "street": "flop",
+      "seat": 2,
+      "text": "P2 [flop] eq 0.59, pot 6 -> RAISE 5 | eq 0.59 vs value line 0.48 -> bet 5 (aggro 2.50, roll 0.85 < 0.94)"
+    },
+    {
+      "hand": 148,
+      "street": "turn",
+      "seat": 2,
+      "text": "P2 [turn] eq 0.62, pot 16 -> RAISE 12 | eq 0.62 vs value line 0.48 -> bet 12 (aggro 2.50, roll 0.03 < 0.94)"
+    },
+    {
+      "hand": 148,
+      "street": "river",
+      "seat": 2,
+      "text": "P2 [river] eq 0.70, pot 40 -> RAISE 30 | eq 0.70 vs value line 0.48 -> bet 30 (aggro 2.50, roll 0.23 < 0.94)"
+    },
+    {
+      "hand": 149,
+      "street": "preflop",
+      "seat": 2,
+      "text": "P2 [preflop] eq 0.39, pot 3, facing 1 -> CALL | eq 0.39 >= needed 0.22 (pot odds 0.25, sticky -0.40) -> call 1"
+    },
+    {
+      "hand": 149,
+      "street": "flop",
+      "seat": 2,
+      "text": "P2 [flop] eq 0.66, pot 4 -> RAISE 3 | eq 0.66 vs value line 0.48 -> bet 3 (aggro 2.50, roll 0.52 < 0.94)"
+    },
+    {
+      "hand": 149,
+      "street": "turn",
+      "seat": 2,
+      "text": "P2 [turn] eq 0.95, pot 10 -> RAISE 8 | eq 0.95 vs value line 0.48 -> bet 8 (aggro 2.50, roll 0.22 < 0.94)"
+    },
+    {
+      "hand": 150,
+      "street": "preflop",
+      "seat": 2,
+      "text": "P2 [preflop] eq 0.37, pot 3, facing 2 -> CALL | eq 0.37 >= needed 0.35 (pot odds 0.40, sticky -0.40) -> call 2"
+    },
+    {
+      "hand": 150,
+      "street": "flop",
+      "seat": 2,
+      "text": "P2 [flop] eq 0.15, pot 6 -> CHECK | eq 0.15, checks (roll 0.49 >= p(bet) 0.06)"
+    },
+    {
+      "hand": 150,
+      "street": "turn",
+      "seat": 2,
+      "text": "P2 [turn] eq 0.26, pot 11, facing 5 -> FOLD | eq 0.26 < needed 0.28 -> fold 5"
+    }
+  ],
+  "final_stacks": [
+    81,
+    545,
+    323
+  ],
+  "om": {
+    "1": {
+      "opp_aggro": 0.002,
+      "opp_sticky": 0.002,
+      "samples": 149
+    },
+    "2": {
+      "opp_aggro": 0.002,
+      "opp_sticky": 0.002,
+      "samples": 149
+    }
+  },
+  "checks": {
+    "pass": 12,
+    "fail": 0
+  },
+  "generated": "2026-09-25T03:18:48.556Z"
+}

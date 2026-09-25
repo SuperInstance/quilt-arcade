@@ -1,0 +1,824 @@
+{
+  "id": "holdem",
+  "title": "Quilt Arcade — Texas Hold'em (hidden info + ML strategy cells)",
+  "cells": [
+    {
+      "id": "rules.book",
+      "kind": "value",
+      "value": "TEXAS HOLD'EM — RULEBOOK v1 (3-max, 2 chip blind, 100 chip stacks)\n\nC1 (deck)         The game uses ONE deck of 52 distinct cards (ranks 2..A in\n                  four suits shdc). Before each hand the deck is shuffled; a\n                  card that has entered play never re-enters the deck. A deck\n                  that is not 52 distinct valid cards cannot start a hand.\n\nC2 (seats+blinds) Three seats play. The button rotates one seat per hand. The\n                  seat left of the button posts the SMALL blind (1 chip), the\n                  seat left of that posts the BIG blind (2 chips). Blinds are\n                  live bets on the first street.\n\nC3 (holes)        Each seat is dealt TWO private cards. Every card is distinct;\n                  six cards leave the deck. A seat's hole cards belong to that\n                  seat's own cells — other views may not render them (C10).\n\nC4 (streets)      Betting runs on four streets: preflop (0 community cards),\n                  flop (3 dealt at once), turn (1), river (1). A street's\n                  community cards are dealt only when the previous street's\n                  betting has closed. No burn cards (house simplification).\n\nC5 (betting)      On your turn you may FOLD, CHECK (only when facing no bet),\n                  CALL (match the current bet, all-in for less if short), or\n                  RAISE to a total at least the current bet plus the last\n                  raise size (opens the betting again for everyone else). An\n                  all-in below min-raise is a CALL: it does not re-open. When\n                  only one seat remains it wins the pot without showing.\n\nC6 (table stakes) A seat never risks chips it does not own, and a RAISE never\n                  goes beyond the smallest starting stack of the hand (the\n                  cap). A called all-in may take a seat's whole stack.\n                  Contributions are LEVELLED at showdown: chips put in beyond\n                  the smallest contributing active stack are returned. There\n                  are no side pots (house simplification, kept honest by the\n                  conservation audit).\n\nC7 (showdown)     When river betting closes, every live seat SHOWS its hole\n                  cards (the reveal flips every projection cell). The best\n                  five-card hand from each seat's seven cards wins the pot;\n                  equal best hands split it.\n\nC8 (ranking)      Hands rank: straight flush > quads > full house > flush >\n                  straight > trips > two pair > pair > high card, with the\n                  standard kicker orders and the wheel (A2345) as the lowest\n                  straight. rule.C8.check ports this table 1:1 and is directly\n                  probe-able with any seven cards.\n\nC9 (rebuy)        A seat with fewer than 10 big blinds when a hand starts\n                  tops up to 100 chips (casino rebuy). The button still\n                  rotates; learning ledgers are never reset by a rebuy.\n\nC10 (projection)  A seat's hole cards render as ?? ?? on every view that is\n                  not that seat's own, until the SHOW: the showdown reveal or\n                  an explicit call to show. Folded hands stay hidden even at\n                  showdown. From an agent's view, the cells link to the cards\n                  that are theirs; the shared screen sees only projections.\n\nTURN (derived)    Preflop the button acts first, then small blind, then big\n                  blind. Postflop the small blind acts first. A raise re-opens\n                  the action on everyone who has not matched it. Refused\n                  requests change nothing and keep the turn.",
+      "description": "the complete ruleset; every clause is ported 1:1 to a rule.Cn.check cell"
+    },
+    {
+      "id": "rule.C1.law",
+      "kind": "value",
+      "value": "C1 (deck): one 52-card deck, shuffled per hand; a played card never re-enters.",
+      "description": "clause C1 quoted from rules.book"
+    },
+    {
+      "id": "rule.C1.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause C1 (rule-bubble UI reads this)"
+    },
+    {
+      "id": "rule.C2.law",
+      "kind": "value",
+      "value": "C2 (seats+blinds): 3-max; button rotates; SB 1 chip, BB 2 chips, live preflop.",
+      "description": "clause C2 quoted from rules.book"
+    },
+    {
+      "id": "rule.C2.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause C2 (rule-bubble UI reads this)"
+    },
+    {
+      "id": "rule.C3.law",
+      "kind": "value",
+      "value": "C3 (holes): two private cards per seat, six distinct cards leave the deck.",
+      "description": "clause C3 quoted from rules.book"
+    },
+    {
+      "id": "rule.C3.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause C3 (rule-bubble UI reads this)"
+    },
+    {
+      "id": "rule.C4.law",
+      "kind": "value",
+      "value": "C4 (streets): preflop/flop 3/turn 1/river 1 — dealt only when prior betting closed.",
+      "description": "clause C4 quoted from rules.book"
+    },
+    {
+      "id": "rule.C4.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause C4 (rule-bubble UI reads this)"
+    },
+    {
+      "id": "rule.C5.law",
+      "kind": "value",
+      "value": "C5 (betting): fold / check / call / raise >= bet + last raise; short all-in calls do not re-open.",
+      "description": "clause C5 quoted from rules.book"
+    },
+    {
+      "id": "rule.C5.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause C5 (rule-bubble UI reads this)"
+    },
+    {
+      "id": "rule.C6.law",
+      "kind": "value",
+      "value": "C6 (table stakes): never risk chips you do not own; raises capped at the smallest starting stack; contributions levelled, no side pots.",
+      "description": "clause C6 quoted from rules.book"
+    },
+    {
+      "id": "rule.C6.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause C6 (rule-bubble UI reads this)"
+    },
+    {
+      "id": "rule.C7.law",
+      "kind": "value",
+      "value": "C7 (showdown): live seats show; best five of seven wins; ties split.",
+      "description": "clause C7 quoted from rules.book"
+    },
+    {
+      "id": "rule.C7.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause C7 (rule-bubble UI reads this)"
+    },
+    {
+      "id": "rule.C8.law",
+      "kind": "value",
+      "value": "C8 (ranking): straight flush > quads > full house > flush > straight > trips > two pair > pair > high card; wheel lowest.",
+      "description": "clause C8 quoted from rules.book"
+    },
+    {
+      "id": "rule.C8.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause C8 (rule-bubble UI reads this)"
+    },
+    {
+      "id": "rule.C9.law",
+      "kind": "value",
+      "value": "C9 (rebuy): under 10bb at hand start tops up to 100 chips.",
+      "description": "clause C9 quoted from rules.book"
+    },
+    {
+      "id": "rule.C9.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause C9 (rule-bubble UI reads this)"
+    },
+    {
+      "id": "rule.C10.law",
+      "kind": "value",
+      "value": "C10 (projection): hole cards render ?? ?? to any non-own view until the show; folded hands never show.",
+      "description": "clause C10 quoted from rules.book"
+    },
+    {
+      "id": "rule.C10.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "last evaluation of clause C10 (rule-bubble UI reads this)"
+    },
+    {
+      "id": "rules.fired",
+      "kind": "value",
+      "value": [],
+      "description": "clauses that came into play for the last action"
+    },
+    {
+      "id": "rules.verdict",
+      "kind": "value",
+      "value": null,
+      "description": "master verdict of the last pushed action"
+    },
+    {
+      "id": "deck.state",
+      "kind": "value",
+      "value": [],
+      "description": "remaining deck after the deal (46 cards)"
+    },
+    {
+      "id": "deck.seed",
+      "kind": "value",
+      "value": 0,
+      "description": "seed of the last shuffle"
+    },
+    {
+      "id": "hole.p0",
+      "kind": "value",
+      "value": [],
+      "description": "seat 0's hole cards — the agent's own view (C3/C10)"
+    },
+    {
+      "id": "proj.p0",
+      "kind": "program",
+      "code": "\n// PROJECTION for seat 0 — the privacy policy is rule.C10.check, shared.\nconst hole = (await runtime.get('hole.p0')).data ?? [];\nconst view = (await runtime.get('view.seat')).data;\nconst reveal = (await runtime.get('reveal.state')).data;\nconst folded = (await runtime.get('folded.p0')).data;\nconst c10 = (await runtime.call('rule.C10.check', { view_seat: view, reveal, seat: 0, folded })).data;\nconst txt = hole.length ? hole.join(' ') : '—';\nreturn { seat: 0, shown: !!c10.show, text: c10.show ? txt : '?? ??', why: c10.why };",
+      "description": "seat 0's PROJECTION: ?? ?? until view/reveal says otherwise (C10)",
+      "deps": [
+        "view.seat",
+        "reveal.state"
+      ]
+    },
+    {
+      "id": "hole.p1",
+      "kind": "value",
+      "value": [],
+      "description": "seat 1's hole cards — the agent's own view (C3/C10)"
+    },
+    {
+      "id": "proj.p1",
+      "kind": "program",
+      "code": "\n// PROJECTION for seat 1 — the privacy policy is rule.C10.check, shared.\nconst hole = (await runtime.get('hole.p1')).data ?? [];\nconst view = (await runtime.get('view.seat')).data;\nconst reveal = (await runtime.get('reveal.state')).data;\nconst folded = (await runtime.get('folded.p1')).data;\nconst c10 = (await runtime.call('rule.C10.check', { view_seat: view, reveal, seat: 1, folded })).data;\nconst txt = hole.length ? hole.join(' ') : '—';\nreturn { seat: 1, shown: !!c10.show, text: c10.show ? txt : '?? ??', why: c10.why };",
+      "description": "seat 1's PROJECTION: ?? ?? until view/reveal says otherwise (C10)",
+      "deps": [
+        "view.seat",
+        "reveal.state"
+      ]
+    },
+    {
+      "id": "hole.p2",
+      "kind": "value",
+      "value": [],
+      "description": "seat 2's hole cards — the agent's own view (C3/C10)"
+    },
+    {
+      "id": "proj.p2",
+      "kind": "program",
+      "code": "\n// PROJECTION for seat 2 — the privacy policy is rule.C10.check, shared.\nconst hole = (await runtime.get('hole.p2')).data ?? [];\nconst view = (await runtime.get('view.seat')).data;\nconst reveal = (await runtime.get('reveal.state')).data;\nconst folded = (await runtime.get('folded.p2')).data;\nconst c10 = (await runtime.call('rule.C10.check', { view_seat: view, reveal, seat: 2, folded })).data;\nconst txt = hole.length ? hole.join(' ') : '—';\nreturn { seat: 2, shown: !!c10.show, text: c10.show ? txt : '?? ??', why: c10.why };",
+      "description": "seat 2's PROJECTION: ?? ?? until view/reveal says otherwise (C10)",
+      "deps": [
+        "view.seat",
+        "reveal.state"
+      ]
+    },
+    {
+      "id": "view.seat",
+      "kind": "value",
+      "value": 0,
+      "description": "which seat the UI renders from (turn off projections of the others)"
+    },
+    {
+      "id": "reveal.state",
+      "kind": "value",
+      "value": false,
+      "description": "the SHOW flag: flipped by showdown or reveal.show"
+    },
+    {
+      "id": "comm.c1",
+      "kind": "value",
+      "value": "",
+      "description": "community card 1: '' until dealt (C4)"
+    },
+    {
+      "id": "comm.c2",
+      "kind": "value",
+      "value": "",
+      "description": "community card 2: '' until dealt (C4)"
+    },
+    {
+      "id": "comm.c3",
+      "kind": "value",
+      "value": "",
+      "description": "community card 3: '' until dealt (C4)"
+    },
+    {
+      "id": "comm.c4",
+      "kind": "value",
+      "value": "",
+      "description": "community card 4: '' until dealt (C4)"
+    },
+    {
+      "id": "comm.c5",
+      "kind": "value",
+      "value": "",
+      "description": "community card 5: '' until dealt (C4)"
+    },
+    {
+      "id": "hand.no",
+      "kind": "value",
+      "value": 0,
+      "description": "hands dealt so far (button = hand.no % 3)"
+    },
+    {
+      "id": "hand.button",
+      "kind": "value",
+      "value": -1,
+      "description": "button seat of the live/last hand"
+    },
+    {
+      "id": "hand.phase",
+      "kind": "value",
+      "value": "idle",
+      "description": "idle | play | over"
+    },
+    {
+      "id": "street.current",
+      "kind": "value",
+      "value": "none",
+      "description": "none | preflop | flop | turn | river"
+    },
+    {
+      "id": "hand.result",
+      "kind": "value",
+      "value": null,
+      "description": "winners + description of the last finished hand"
+    },
+    {
+      "id": "bb.size",
+      "kind": "value",
+      "value": 2,
+      "description": "big blind (small blind = 1)"
+    },
+    {
+      "id": "pot.total",
+      "kind": "value",
+      "value": 0,
+      "description": "chips in the middle right now"
+    },
+    {
+      "id": "pot.collected",
+      "kind": "value",
+      "value": 0,
+      "description": "chips collected from closed streets"
+    },
+    {
+      "id": "pot.audit",
+      "kind": "formula",
+      "expr": "bets.p0 + bets.p1 + bets.p2 + pot.collected - pot.total",
+      "description": "live conservation invariant: must be 0 (PATTERNS pattern 6)"
+    },
+    {
+      "id": "stacks.p0",
+      "kind": "value",
+      "value": 100,
+      "description": "seat 0 chips behind"
+    },
+    {
+      "id": "bets.p0",
+      "kind": "value",
+      "value": 0,
+      "description": "seat 0 chips committed this street"
+    },
+    {
+      "id": "contrib.p0",
+      "kind": "value",
+      "value": 0,
+      "description": "seat 0 total contribution this hand (levelling, C6)"
+    },
+    {
+      "id": "folded.p0",
+      "kind": "value",
+      "value": false,
+      "description": "seat 0 folded?"
+    },
+    {
+      "id": "allin.p0",
+      "kind": "value",
+      "value": false,
+      "description": "seat 0 all-in?"
+    },
+    {
+      "id": "stacks.p1",
+      "kind": "value",
+      "value": 100,
+      "description": "seat 1 chips behind"
+    },
+    {
+      "id": "bets.p1",
+      "kind": "value",
+      "value": 0,
+      "description": "seat 1 chips committed this street"
+    },
+    {
+      "id": "contrib.p1",
+      "kind": "value",
+      "value": 0,
+      "description": "seat 1 total contribution this hand (levelling, C6)"
+    },
+    {
+      "id": "folded.p1",
+      "kind": "value",
+      "value": false,
+      "description": "seat 1 folded?"
+    },
+    {
+      "id": "allin.p1",
+      "kind": "value",
+      "value": false,
+      "description": "seat 1 all-in?"
+    },
+    {
+      "id": "stacks.p2",
+      "kind": "value",
+      "value": 100,
+      "description": "seat 2 chips behind"
+    },
+    {
+      "id": "bets.p2",
+      "kind": "value",
+      "value": 0,
+      "description": "seat 2 chips committed this street"
+    },
+    {
+      "id": "contrib.p2",
+      "kind": "value",
+      "value": 0,
+      "description": "seat 2 total contribution this hand (levelling, C6)"
+    },
+    {
+      "id": "folded.p2",
+      "kind": "value",
+      "value": false,
+      "description": "seat 2 folded?"
+    },
+    {
+      "id": "allin.p2",
+      "kind": "value",
+      "value": false,
+      "description": "seat 2 all-in?"
+    },
+    {
+      "id": "to.act",
+      "kind": "value",
+      "value": -1,
+      "description": "seat whose turn it is"
+    },
+    {
+      "id": "pending.list",
+      "kind": "value",
+      "value": [],
+      "description": "seats still to act this street"
+    },
+    {
+      "id": "last.aggressor",
+      "kind": "value",
+      "value": -1,
+      "description": "last raise seat"
+    },
+    {
+      "id": "last.raise",
+      "kind": "value",
+      "value": 2,
+      "description": "current min-raise increment (C5)"
+    },
+    {
+      "id": "allin.cap",
+      "kind": "value",
+      "value": 100,
+      "description": "table-stakes cap: smallest starting stack this hand (C6)"
+    },
+    {
+      "id": "match.seq",
+      "kind": "value",
+      "value": 0,
+      "description": "monotonic action-request sequence (arbiter-owned)"
+    },
+    {
+      "id": "seats.cfg",
+      "kind": "value",
+      "value": {
+        "0": "fish",
+        "1": "learn",
+        "2": "learn"
+      },
+      "description": "per-seat brain: fish | learn | human (CVC ships fish+2 learners)"
+    },
+    {
+      "id": "rule.C1.check",
+      "kind": "program",
+      "code": "\nconst deck = input?.deck ?? [];\nconst valid = deck.every(c => typeof c === 'string' && c.length === 2 && '23456789TJQKA'.includes(c[0]) && 'shdc'.includes(c[1]));\nconst uniq = new Set(deck).size === deck.length;\nconst fired = deck.length !== 52 || !valid || !uniq;\nreturn { fired, why: !fired ? 'deck sealed: 52 distinct cards (C1).'\n  : 'deck invalid — ' + deck.length + ' cards, valid=' + valid + ', unique=' + uniq + ' — the hand cannot start (C1).' };",
+      "description": "C1 port: deck integrity",
+      "deps": []
+    },
+    {
+      "id": "rule.C2.check",
+      "kind": "program",
+      "code": "\nconst { button, sb, bbSeat, bb, sbAmt } = input ?? {};\nconst ok = [button, sb, bbSeat].every(Number.isInteger) && new Set([button, sb, bbSeat]).size === 3\n  && button === (sb + 2) % 3 && sb === (bbSeat + 2) % 3;\nreturn { fired: !ok, why: ok\n  ? 'button P' + button + '; SB P' + sb + ' posts ' + sbAmt + ', BB P' + bbSeat + ' posts ' + bb + ' (C2).'\n  : 'seating is not a legal 3-max rotation (C2: SB left of button, BB left of SB).' };",
+      "description": "C2 port: 3-max rotation + blinds",
+      "deps": []
+    },
+    {
+      "id": "rule.C3.check",
+      "kind": "program",
+      "code": "\nconst holes = input?.holes ?? [];\nconst flat = holes.flat();\nconst valid = flat.every(c => typeof c === 'string' && c.length === 2 && '23456789TJQKA'.includes(c[0]) && 'shdc'.includes(c[1]));\nconst two = holes.every(h => h.length === 2);\nconst uniq = new Set(flat).size === 6;\nconst fired = !(valid && two && uniq);\nreturn { fired, why: !fired\n  ? 'hole cards dealt: ' + holes.map((h, i) => 'P' + i + ' ' + h.join('')).join(', ') + ' — six distinct cards (C3).'\n  : 'deal invalid (two per seat=' + two + ', distinct=' + uniq + ', valid=' + valid + ') — C3 refuses.' };",
+      "description": "C3 port: two distinct hole cards per seat",
+      "deps": []
+    },
+    {
+      "id": "rule.C4.check",
+      "kind": "program",
+      "code": "\nconst { street_before, street_after, comm_count_after, dealt } = input ?? {};\nconst need = { flop: 3, turn: 1, river: 1 };\nconst expCount = { flop: 3, turn: 4, river: 5 };\nconst transition = ({ preflop: 'flop', flop: 'turn', turn: 'river' })[street_before];\nconst ok = transition === street_after && need[street_after] === (dealt ?? []).length\n  && expCount[street_after] === comm_count_after;\nreturn { fired: !ok, dealt, why: ok\n  ? street_after + ' deals ' + (dealt ?? []).join(' ') + ' — ' + comm_count_after + ' community cards (C4).'\n  : 'street transition ' + street_before + ' -> ' + street_after + ' does not match the C4 dealing table.' };",
+      "description": "C4 port: street dealing table",
+      "deps": []
+    },
+    {
+      "id": "rule.C5.check",
+      "kind": "program",
+      "code": "\n// C5 port: action legality + normalization. Returns norm = the referee's\n// marching orders: {kind, pay, raise_to?, reopen?}.\nconst { seat, action, amount, to_act, to_call, max_bet, min_raise, stack, own, cap, phase } = input ?? {};\nif (phase !== 'play') return { fired: true, why: 'C5 needs a live hand — deal first.' };\nif (seat !== to_act) return { fired: true, why: 'P' + seat + ' acted out of turn — the action is on P' + to_act + ' (C5).' };\nif (!['fold', 'check', 'call', 'raise'].includes(action))\n  return { fired: true, why: 'unknown action ' + JSON.stringify(action) + ' — C5 allows fold / check / call / raise only.' };\nif (action === 'fold') return { fired: false, why: 'P' + seat + ' folds.', norm: { kind: 'fold', pay: 0, reopen: false } };\nif (action === 'check') {\n  if (to_call > 0) return { fired: true, why: 'P' + seat + ' cannot check — facing a bet of ' + to_call + ' (C5: check only when nothing to call).' };\n  return { fired: false, why: 'P' + seat + ' checks.', norm: { kind: 'check', pay: 0, reopen: false } };\n}\nif (action === 'call') {\n  if (to_call <= 0) return { fired: true, why: 'nothing to call — P' + seat + ' should check (C5).' };\n  const pay = Math.min(to_call, stack);\n  const short = pay < to_call;\n  return { fired: false, why: 'P' + seat + ' calls ' + pay + (short ? ' — ALL-IN for the last ' + stack + ' chips; does not re-open the betting (C5).' : '.'), norm: { kind: short ? 'allin-call' : 'call', pay, reopen: false } };\n}\n// raise (or opening bet)\nif (to_call >= stack) return { fired: true, why: 'P' + seat + ' cannot raise — calling ' + to_call + ' would take the whole stack of ' + stack + '; C5 gives an all-in call, not a raise.' };\nlet target = (Number.isFinite(amount) && amount) ? amount : (max_bet + min_raise);\nconst maxTarget = own + stack;\nif (target > maxTarget) target = maxTarget;   // a shove normalizes to the stack\nconst minT = max_bet + min_raise;\nif (target < minT) {\n  if (target === maxTarget && maxTarget < minT)\n    return { fired: false, why: 'P' + seat + ' shoves ' + target + ' — below a min-raise, so it is a CALL for ' + to_call + '; the rest of the shove is declined (C5: a short shove does not re-open the betting).', norm: { kind: 'call', pay: to_call, raise_to: own + to_call, reopen: false } };\n  return { fired: true, why: 'P' + seat + ' raise to ' + target + ' is below the minimum raise to ' + minT + ' (C5: raise >= current bet ' + max_bet + ' + last raise size ' + min_raise + ').' };\n}\nlet cappedByTable = false;\nif (target > cap) { target = cap; cappedByTable = true; }\nreturn { fired: false, why: 'P' + seat + ' raises to ' + target + (cappedByTable ? ' — capped by the table stakes (C6).' : '.'),\n  norm: { kind: 'raise', pay: target - own, raise_to: target, reopen: true, capped: cappedByTable } };",
+      "description": "C5 port: action legality + normalization",
+      "deps": []
+    },
+    {
+      "id": "rule.C6.check",
+      "kind": "program",
+      "code": "\nconst { kind, pay, stack, raise_to, cap } = input ?? {};\nconst overStack = (pay ?? 0) > stack;\n// the cap constrains RAISE SIZING; a called all-in may take a seat's whole stack\nconst overCap = kind === 'raise' && (raise_to ?? 0) > cap;\nreturn { fired: overStack || overCap, why: !overStack && !overCap\n  ? 'chips are inside the table stakes (C6): pay ' + pay + ' <= stack ' + stack + (kind === 'raise' ? ', raise_to ' + (raise_to ?? 0) + ' <= cap ' + cap + '.' : '.')\n  : overStack\n    ? 'P would pay ' + pay + ' but owns only ' + stack + ' chips (C6: a seat never risks chips it does not have).'\n    : 'raise to ' + raise_to + ' exceeds the table-stakes cap of ' + cap + ' — the smallest starting stack this hand (C6).' };",
+      "description": "C6 port: table stakes / cap",
+      "deps": []
+    },
+    {
+      "id": "rule.C7.check",
+      "kind": "program",
+      "code": "\n\nconst RANK_CH = '23456789TJQKA';\nconst RANK_NAME = {2:'deuce',3:'trey',4:'four',5:'five',6:'six',7:'seven',8:'eight',9:'nine',10:'ten',11:'jack',12:'queen',13:'king',14:'ace'};\nconst rnk = (c) => RANK_CH.indexOf(c[0]) + 2;\nconst straightHigh = (list) => {\n  const uq = [...new Set(list)].sort((a, b) => b - a);\n  if (uq.includes(14)) uq.push(1);\n  let run = 1;\n  for (let i = 1; i < uq.length; i++) {\n    run = (uq[i] === uq[i - 1] - 1) ? run + 1 : 1;\n    if (run === 5) return uq[i] + 4;\n  }\n  return 0;\n};\nconst eval7 = (cards) => {\n  const vals = cards.map(c => rnk(c));\n  const cnt = {}; for (const v of vals) cnt[v] = (cnt[v] || 0) + 1;\n  const groups = Object.keys(cnt).map(Number).sort((a, b) => cnt[b] - cnt[a] || b - a);\n  const suitCnt = {}; for (const c of cards) suitCnt[c[1]] = (suitCnt[c[1]] || 0) + 1;\n  const fs = Object.keys(suitCnt).find(s => suitCnt[s] >= 5);\n  if (fs) {\n    const fv = cards.filter(c => c[1] === fs).map(c => rnk(c));\n    const sh = straightHigh(fv);\n    if (sh) return { cat: 8, tie: [sh], name: (sh === 14 ? 'ROYAL FLUSH' : 'straight flush, ' + RANK_NAME[sh] + ' high') };\n  }\n  if (cnt[groups[0]] === 4) return { cat: 7, tie: [groups[0], groups[1]], name: 'quad ' + RANK_NAME[groups[0]] + 's' };\n  if (cnt[groups[0]] === 3 && cnt[groups[1]] >= 2)\n    return { cat: 6, tie: [groups[0], groups[1]], name: 'full house, ' + RANK_NAME[groups[0]] + 's over ' + RANK_NAME[groups[1]] + 's' };\n  if (fs) {\n    const fv = cards.filter(c => c[1] === fs).map(c => rnk(c)).sort((a, b) => b - a).slice(0, 5);\n    return { cat: 5, tie: fv, name: 'flush, ' + RANK_NAME[fv[0]] + ' high' };\n  }\n  const sh = straightHigh(vals);\n  if (sh) return { cat: 4, tie: [sh], name: 'straight, ' + RANK_NAME[sh] + ' high' };\n  if (cnt[groups[0]] === 3) return { cat: 3, tie: [groups[0], groups[1], groups[2]], name: 'trip ' + RANK_NAME[groups[0]] + 's' };\n  if (cnt[groups[0]] === 2 && cnt[groups[1]] === 2) {\n    // three-pair boards: play the two highest pairs; kicker = best remaining rank\n    const p1 = groups[0], p2 = groups[1];\n    const kick = Math.max(...Object.keys(cnt).map(Number).filter(r => r !== p1 && r !== p2));\n    return { cat: 2, tie: [p1, p2, kick], name: 'two pair, ' + RANK_NAME[p1] + 's and ' + RANK_NAME[p2] + 's' };\n  }\n  if (cnt[groups[0]] === 2)\n    return { cat: 1, tie: [groups[0], groups[1], groups[2], groups[3]], name: 'pair of ' + RANK_NAME[groups[0]] + 's' };\n  const hi = [...new Set(vals)].sort((a, b) => b - a).slice(0, 5);\n  return { cat: 0, tie: hi, name: 'high card ' + RANK_NAME[hi[0]] };\n};\nconst cmpHands = (a, b) => {\n  if (a.cat !== b.cat) return a.cat - b.cat;\n  for (let i = 0; i < Math.max(a.tie.length, b.tie.length); i++) {\n    const x = a.tie[i] ?? 0, y = b.tie[i] ?? 0;\n    if (x !== y) return x - y;\n  }\n  return 0;\n};\nconst comm = input?.comm ?? [], holes = input?.holes ?? {}, active = input?.active ?? [];\nif (comm.length !== 5) return { fired: true, why: 'showdown needs 5 community cards; found ' + comm.length + ' (C7).' };\nconst ranks = [];\nfor (const seat of active) {\n  const hole = holes[seat] ?? [];\n  const best = eval7(hole.concat(comm));\n  ranks.push({ seat, cat: best.cat, tie: best.tie, name: best.name, hole: hole.join(' ') });\n}\nranks.sort((a, b) => cmpHands(b, a));\nconst top = ranks[0];\nconst winners = ranks.filter(r => cmpHands(r, top) === 0).map(r => r.seat);\nconst parts = ranks.map(r => 'P' + r.seat + ' shows ' + r.hole + ' — ' + r.name);\nconst why = parts.join('; ') + '. ' + (winners.length > 1\n  ? 'Split pot: P' + winners.join(' and P') + ' tie with ' + top.name + '.'\n  : 'P' + winners[0] + ' wins the pot with ' + top.name + '.');\nreturn { fired: true, winners, ranks, why };",
+      "description": "C7 port: showdown ranking + winners",
+      "deps": []
+    },
+    {
+      "id": "rule.C8.check",
+      "kind": "program",
+      "code": "\n\nconst RANK_CH = '23456789TJQKA';\nconst RANK_NAME = {2:'deuce',3:'trey',4:'four',5:'five',6:'six',7:'seven',8:'eight',9:'nine',10:'ten',11:'jack',12:'queen',13:'king',14:'ace'};\nconst rnk = (c) => RANK_CH.indexOf(c[0]) + 2;\nconst straightHigh = (list) => {\n  const uq = [...new Set(list)].sort((a, b) => b - a);\n  if (uq.includes(14)) uq.push(1);\n  let run = 1;\n  for (let i = 1; i < uq.length; i++) {\n    run = (uq[i] === uq[i - 1] - 1) ? run + 1 : 1;\n    if (run === 5) return uq[i] + 4;\n  }\n  return 0;\n};\nconst eval7 = (cards) => {\n  const vals = cards.map(c => rnk(c));\n  const cnt = {}; for (const v of vals) cnt[v] = (cnt[v] || 0) + 1;\n  const groups = Object.keys(cnt).map(Number).sort((a, b) => cnt[b] - cnt[a] || b - a);\n  const suitCnt = {}; for (const c of cards) suitCnt[c[1]] = (suitCnt[c[1]] || 0) + 1;\n  const fs = Object.keys(suitCnt).find(s => suitCnt[s] >= 5);\n  if (fs) {\n    const fv = cards.filter(c => c[1] === fs).map(c => rnk(c));\n    const sh = straightHigh(fv);\n    if (sh) return { cat: 8, tie: [sh], name: (sh === 14 ? 'ROYAL FLUSH' : 'straight flush, ' + RANK_NAME[sh] + ' high') };\n  }\n  if (cnt[groups[0]] === 4) return { cat: 7, tie: [groups[0], groups[1]], name: 'quad ' + RANK_NAME[groups[0]] + 's' };\n  if (cnt[groups[0]] === 3 && cnt[groups[1]] >= 2)\n    return { cat: 6, tie: [groups[0], groups[1]], name: 'full house, ' + RANK_NAME[groups[0]] + 's over ' + RANK_NAME[groups[1]] + 's' };\n  if (fs) {\n    const fv = cards.filter(c => c[1] === fs).map(c => rnk(c)).sort((a, b) => b - a).slice(0, 5);\n    return { cat: 5, tie: fv, name: 'flush, ' + RANK_NAME[fv[0]] + ' high' };\n  }\n  const sh = straightHigh(vals);\n  if (sh) return { cat: 4, tie: [sh], name: 'straight, ' + RANK_NAME[sh] + ' high' };\n  if (cnt[groups[0]] === 3) return { cat: 3, tie: [groups[0], groups[1], groups[2]], name: 'trip ' + RANK_NAME[groups[0]] + 's' };\n  if (cnt[groups[0]] === 2 && cnt[groups[1]] === 2) {\n    // three-pair boards: play the two highest pairs; kicker = best remaining rank\n    const p1 = groups[0], p2 = groups[1];\n    const kick = Math.max(...Object.keys(cnt).map(Number).filter(r => r !== p1 && r !== p2));\n    return { cat: 2, tie: [p1, p2, kick], name: 'two pair, ' + RANK_NAME[p1] + 's and ' + RANK_NAME[p2] + 's' };\n  }\n  if (cnt[groups[0]] === 2)\n    return { cat: 1, tie: [groups[0], groups[1], groups[2], groups[3]], name: 'pair of ' + RANK_NAME[groups[0]] + 's' };\n  const hi = [...new Set(vals)].sort((a, b) => b - a).slice(0, 5);\n  return { cat: 0, tie: hi, name: 'high card ' + RANK_NAME[hi[0]] };\n};\nconst cmpHands = (a, b) => {\n  if (a.cat !== b.cat) return a.cat - b.cat;\n  for (let i = 0; i < Math.max(a.tie.length, b.tie.length); i++) {\n    const x = a.tie[i] ?? 0, y = b.tie[i] ?? 0;\n    if (x !== y) return x - y;\n  }\n  return 0;\n};\nconst cards = input?.cards ?? [];\nif (cards.length !== 7) return { fired: true, why: 'C8 evaluates exactly seven cards; got ' + cards.length + '.' };\nconst best = eval7(cards);\nreturn { fired: true, cat: best.cat, tie: best.tie, name: best.name,\n  why: 'best five of seven: ' + best.name + ' (category ' + best.cat + ').' };",
+      "description": "C8 port: the hand-ranking table (probe-able)",
+      "deps": []
+    },
+    {
+      "id": "rule.C9.check",
+      "kind": "program",
+      "code": "\nconst { stacks, bb, min_bb } = input ?? {};\nconst rebuy = [];\nfor (let i = 0; i < (stacks ?? []).length; i++) if (stacks[i] < bb * min_bb) rebuy.push(i);\nreturn { fired: rebuy.length > 0, rebuy, why: rebuy.length\n  ? 'P' + rebuy.join(' and P') + ' below ' + (bb * min_bb) + ' chips — house rule C9 tops them up to 100.'\n  : 'all seats above the rebuy line (' + bb * min_bb + ' chips) — no rebuy (C9).' };",
+      "description": "C9 port: rebuy line",
+      "deps": []
+    },
+    {
+      "id": "rule.C10.check",
+      "kind": "program",
+      "code": "\nconst { view_seat, reveal, seat, folded } = input ?? {};\nconst show = seat === view_seat || (!!reveal && !folded);\nreturn { fired: !show, show, why: show\n  ? \"P\" + seat + \"'s cards render from view P\" + view_seat + (reveal && !folded ? ' — the show has been called (C10).' : \" — that view IS seat P\" + seat + \".\")\n  : \"P\" + seat + \"'s cards are hidden from view P\" + view_seat + \" — projection stays ?? ?? until the show (C10).\" };",
+      "description": "C10 port: the projection/privacy policy",
+      "deps": []
+    },
+    {
+      "id": "deal.hand",
+      "kind": "program",
+      "code": "\n// DEAL NEW HAND — the card placements ARE the cascade (trace = animation).\nconst g = async (id) => (await runtime.get(id)).data;\nconst s = (id, val) => runtime.set(id, val);\n\n    const rng = (seed) => { let a = (seed ?? 1) >>> 0;\n      return () => { a |= 0; a = (a + 0x6D2B79F5) | 0;\n        let t = Math.imul(a ^ (a >>> 15), 1 | a);\n        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;\n        return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };\nconst logEv = async (e) => { const lg = await g('log.events'); await s('log.events', [...lg.slice(-299), { ts: Date.now(), ...e }]); };\nconst phase = await g('hand.phase');\nif (phase === 'play') return { ok: false, rule: 'C4', text: 'a hand is already live — finish it first.' };\nconst bb = await g('bb.size');\nconst handNo = await g('hand.no');\nconst fired = [];\n// C9 rebuy\nlet stacks = [await g('stacks.p0'), await g('stacks.p1'), await g('stacks.p2')];\nconst c9 = (await runtime.call('rule.C9.check', { stacks, bb, min_bb: 10 })).data;\nawait s('rule.C9.verdict', { ...c9, ts: Date.now() });\nfired.push('C9');\nfor (const i of (c9.rebuy ?? [])) { stacks[i] = 100; await s('stacks.p' + i, 100); }\n// C1 deck\nlet deck = [];\nfor (const r of '23456789TJQKA') for (const su of 'shdc') deck.push(r + su);\nconst rnd = rng((((input?.seed ?? 1) * 2654435761) >>> 0));\nfor (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = deck[i]; deck[i] = deck[j]; deck[j] = t; }\nconst c1 = (await runtime.call('rule.C1.check', { deck, seq: input?.seed ?? 1 })).data;\nawait s('rule.C1.verdict', { ...c1, ts: Date.now() });\nfired.push('C1');\nif (c1.fired) return { ok: false, rule: 'C1', text: c1.why };\n// C2 seats + blinds\nconst button = handNo % 3;\nconst sbSeat = (button + 1) % 3, bbSeat = (button + 2) % 3;\nconst c2 = (await runtime.call('rule.C2.check', { button, sb: sbSeat, bbSeat, bb, sbAmt: bb / 2 })).data;\nawait s('rule.C2.verdict', { ...c2, ts: Date.now() });\nfired.push('C2');\nif (c2.fired) return { ok: false, rule: 'C2', text: c2.why };\n// C3 holes\nconst hole = [[deck[0], deck[3]], [deck[1], deck[4]], [deck[2], deck[5]]];\nconst c3 = (await runtime.call('rule.C3.check', { holes: hole, deck })).data;\nawait s('rule.C3.verdict', { ...c3, ts: Date.now() });\nfired.push('C3');\nif (c3.fired) return { ok: false, rule: 'C3', text: c3.why };\n// effects: reset per-hand state, place the cards\nfor (let i = 0; i < 3; i++) {\n  await s('folded.p' + i, false); await s('allin.p' + i, false);\n  await s('bets.p' + i, 0); await s('contrib.p' + i, 0);\n  await s('hole.p' + i, hole[i]);\n  await s('hand.log.p' + i, []);\n}\nfor (let i = 1; i <= 5; i++) await s('comm.c' + i, '');\nconst trace = [];\nfor (let i = 0; i < 3; i++) { trace.push({ card: hole[i][0], to: 'hole.p' + i }); trace.push({ card: hole[i][1], to: 'hole.p' + i }); }\n// blinds (chips move from stacks into this street's bets)\nconst payBlind = async (i, amt) => {\n  const pay = Math.min(amt, stacks[i]);\n  stacks[i] -= pay;\n  await s('stacks.p' + i, stacks[i]);\n  await s('bets.p' + i, pay);\n  await s('contrib.p' + i, pay);\n  return pay;\n};\nconst sbPaid = await payBlind(sbSeat, bb / 2);\nconst bbPaid = await payBlind(bbSeat, bb);\n// state\nawait s('deck.state', deck.slice(6));\nawait s('deck.seed', input?.seed ?? 1);\nawait s('pot.total', sbPaid + bbPaid);\nawait s('pot.collected', 0);\nawait s('hand.no', handNo + 1);\nawait s('hand.button', button);\nawait s('hand.phase', 'play');\nawait s('street.current', 'preflop');\nawait s('reveal.state', false);\nawait s('hand.result', null);\nawait s('allin.cap', Math.min(...[0, 1, 2].map(i => stacks[i] + (i === sbSeat ? sbPaid : i === bbSeat ? bbPaid : 0))));\nconst pending = [button, sbSeat, bbSeat];\nawait s('pending.list', pending);\nawait s('to.act', button);\nawait s('last.aggressor', -1);\nawait s('last.raise', bb);\nawait s('rules.fired', fired);\nawait s('rules.verdict', { ok: true, rule: 'C3', seq: 0, ts: Date.now(), text: c3.why + ' ' + c2.why, trace });\nawait logEv({ kind: 'deal', hand: handNo + 1, text: 'hand #' + (handNo + 1) + ' — button P' + button + ', blinds P' + sbSeat + ':' + sbPaid + ' P' + bbSeat + ':' + bbPaid + (c9.rebuy?.length ? ' (rebuy: P' + c9.rebuy.join(', P') + ')' : '') });\nreturn { ok: true, hand: handNo + 1, button, trace, text: 'hand #' + (handNo + 1) + ' dealt — P' + button + ' acts first (preflop).' };",
+      "description": "C9 -> C1 -> C2 -> C3 -> preflop; trace = card cascade",
+      "deps": [
+        "hand.phase"
+      ]
+    },
+    {
+      "id": "action.arbiter",
+      "kind": "program",
+      "code": "\n// THE REFEREE — knows no rules; sequences the rule cells and applies the\n// effects they computed. Every verdict you see was produced by a rule cell.\nconst g = async (id) => (await runtime.get(id)).data;\nconst s = (id, val) => runtime.set(id, val);\nconst logEv = async (e) => { const lg = await g('log.events'); await s('log.events', [...lg.slice(-299), { ts: Date.now(), ...e }]); };\nconst seq = input?.seq ?? 0;\nconst lastSeq = await g('match.seq');\nif (seq <= lastSeq) return { ok: false, rule: 'DUP', text: 'stale request (seq ' + seq + ' <= ' + lastSeq + ') — nothing happened.' };\nconst phase = await g('hand.phase');\nif (phase !== 'play') return { ok: false, rule: 'C5', text: 'no live hand — deal first (C5 needs a live hand).' };\nconst seat = input?.seat;\nconst bb = await g('bb.size');\nconst street = await g('street.current');\nconst handNo = await g('hand.no');\nconst bets = [await g('bets.p0'), await g('bets.p1'), await g('bets.p2')];\nconst stacks = [await g('stacks.p0'), await g('stacks.p1'), await g('stacks.p2')];\nconst folded = [await g('folded.p0'), await g('folded.p1'), await g('folded.p2')];\nconst allin = [await g('allin.p0'), await g('allin.p1'), await g('allin.p2')];\nconst pot = await g('pot.total');\nconst maxBet = Math.max(...bets);\nconst toCall = maxBet - bets[seat];\nconst pending = await g('pending.list');\nconst toAct = await g('to.act');\nconst lastRaise = await g('last.raise');\nconst cap = await g('allin.cap');\nconst fired = [];\nconst done = async (verdict) => {\n  await logEv({ kind: verdict.ok ? 'apply' : 'refuse', hand: handNo, seat, street, action: input?.action ?? null, rule: verdict.rule ?? null, seq, text: verdict.text });\n  await s('rules.verdict', { ...verdict, seq, ts: Date.now() });\n  return verdict;\n};\n// C5 legality + normalization (pure checker)\nconst c5 = (await runtime.call('rule.C5.check', {\n  seat, action: input?.action, amount: input?.amount, street, to_act: toAct,\n  to_call: toCall, max_bet: maxBet, min_raise: lastRaise, stack: stacks[seat],\n  own: bets[seat], pot, cap, phase })).data;\nawait s('rule.C5.verdict', { ...c5, ts: Date.now() });\nfired.push('C5');\nif (c5.fired) { await s('rules.fired', fired); return done({ ok: false, rule: 'C5', text: c5.why }); }\nconst norm = c5.norm;\nconst actText = c5.why;\n// C6 table stakes\nconst c6 = (await runtime.call('rule.C6.check', { kind: norm.kind, pay: norm.pay, stack: stacks[seat], raise_to: norm.raise_to ?? 0, cap })).data;\nawait s('rule.C6.verdict', { ...c6, ts: Date.now() });\nfired.push('C6');\nif (c6.fired) { await s('rules.fired', fired); return done({ ok: false, rule: 'C6', text: c6.why }); }\n// ── apply the effects ──\nif (norm.kind === 'fold') {\n  folded[seat] = true;\n  await s('folded.p' + seat, true);\n} else if (norm.pay > 0) {\n  stacks[seat] -= norm.pay; bets[seat] += norm.pay;\n  await s('stacks.p' + seat, stacks[seat]);\n  await s('bets.p' + seat, bets[seat]);\n  await s('contrib.p' + seat, (await g('contrib.p' + seat)) + norm.pay);\n  await s('pot.total', pot + norm.pay);\n  if (stacks[seat] === 0) { allin[seat] = true; await s('allin.p' + seat, true); }\n}\nconst active = [0, 1, 2].filter(i => !folded[i]);\nconst canAct = (excl) => active.filter(i => !allin[i] && i !== excl);\nlet pending2;\nif (norm.kind === 'raise' && norm.reopen) {\n  await s('last.aggressor', seat);\n  await s('last.raise', Math.max(lastRaise, (norm.raise_to ?? 0) - maxBet));\n  pending2 = canAct(seat);\n} else {\n  pending2 = pending.filter(i => i !== seat && !folded[i] && !allin[i]);\n}\n// NOTE: no \"lone player\" shortcut here — every seat in pending2 OWES an action\n// (the BB option, or a re-opened bet). The betting-closed shortcut lives only\n// in the street-advance code below, where everyone has already acted.\nawait s('pending.list', pending2);\nawait s('to.act', pending2.length ? pending2[0] : -1);\n// fold-win: one seat left — no reveal, cards stay hidden (C10)\nif (active.length === 1) {\n  const w = active[0];\n  const contribs = [await g('contrib.p0'), await g('contrib.p1'), await g('contrib.p2')];\n  const othersMax = Math.max(...contribs.filter((_, i) => i !== w));\n  const refund = Math.max(0, contribs[w] - othersMax);\n  let potNow = (await g('pot.total')) - refund;\n  if (refund > 0) { await s('stacks.p' + w, (await g('stacks.p' + w)) + refund); await s('pot.total', potNow); }\n  await s('stacks.p' + w, (await g('stacks.p' + w)) + potNow);\n  await s('pot.total', 0); await s('pot.collected', 0);\n  for (let i = 0; i < 3; i++) await s('bets.p' + i, 0);\n  const desc = 'P' + w + ' wins ' + potNow + ' uncontested — hole cards stay hidden (C10).';\n  await s('hand.phase', 'over');\n  await s('hand.result', { no: handNo, winners: [w], pot: potNow, reveal: false, desc });\n  await s('match.seq', seq);\n  await s('rules.fired', fired);\n  return done({ ok: true, rule: 'C5', text: actText + ' ' + desc, fired, trace: [] });\n}\n// street run-out (the while loop IS the community-card cascade)\nlet cur = street;\nlet trace = [];\nconst countComm = { preflop: 0, flop: 3, turn: 4, river: 5 };\nwhile ((await g('pending.list')).length === 0 && cur !== 'river') {\n  const next = ({ preflop: 'flop', flop: 'turn', turn: 'river' })[cur];\n  const need = ({ flop: 3, turn: 1, river: 1 })[next];\n  const deck = await g('deck.state');\n  const dealt = deck.slice(0, need);\n  await s('deck.state', deck.slice(need));\n  const b2 = [await g('bets.p0'), await g('bets.p1'), await g('bets.p2')];\n  await s('pot.collected', (await g('pot.collected')) + b2[0] + b2[1] + b2[2]);\n  for (let i = 0; i < 3; i++) await s('bets.p' + i, 0);\n  const c4 = (await runtime.call('rule.C4.check', { street_before: cur, street_after: next, comm_count_after: countComm[next], dealt })).data;\n  await s('rule.C4.verdict', { ...c4, ts: Date.now() });\n  fired.push('C4');\n  if (c4.fired) { await s('rules.fired', fired); return done({ ok: false, rule: 'C4', text: c4.why }); }\n  const startIdx = countComm[cur] + 1;\n  dealt.forEach((card, k) => trace.push({ card, to: 'comm.c' + (startIdx + k) }));\n  for (let k = 0; k < dealt.length; k++) await s('comm.c' + (startIdx + k), dealt[k]);\n  await s('street.current', next);\n  cur = next;\n  await s('last.raise', bb);\n  await s('last.aggressor', -1);\n  const act2 = [0, 1, 2].filter(i => !folded[i]);\n  const canAct2 = act2.filter(i => !allin[i]);\n  const btn = await g('hand.button');\n  const order = [(btn + 1) % 3, (btn + 2) % 3, btn];\n  let pend2 = order.filter(i => canAct2.includes(i));\n  if (pend2.length === 1) {\n    const betsNow = [await g('bets.p0'), await g('bets.p1'), await g('bets.p2')];\n    if (betsNow[pend2[0]] >= Math.max(...betsNow)) pend2 = [];\n  }\n  await s('pending.list', pend2);\n  await s('to.act', pend2.length ? pend2[0] : -1);\n  await s('rules.fired', fired);\n}\n// showdown — THE SHOW: C7 flips every live projection via reveal.state\nif (cur === 'river' && (await g('pending.list')).length === 0 && (await g('hand.phase')) === 'play') {\n  const comm = [];\n  for (let i = 1; i <= 5; i++) comm.push(await g('comm.c' + i));\n  const act3 = [0, 1, 2].filter(i => !folded[i]);\n  const holes = {};\n  for (const i of act3) holes[i] = await g('hole.p' + i);\n  const potNow = await g('pot.total');\n  const c7 = (await runtime.call('rule.C7.check', { comm, holes, active: act3, pot: potNow })).data;\n  await s('rule.C7.verdict', { ...c7, ts: Date.now() });\n  fired.push('C7', 'C8', 'C10');\n  await s('reveal.state', true);\n  // level contributions (C6 simplification: no side pots)\n  const contribs = [await g('contrib.p0'), await g('contrib.p1'), await g('contrib.p2')];\n  const level = Math.min(...act3.map(i => contribs[i]));\n  let pot2 = potNow;\n  for (const i of act3) {\n    const refund = contribs[i] - level;\n    if (refund > 0) { await s('stacks.p' + i, (await g('stacks.p' + i)) + refund); pot2 -= refund; }\n  }\n  await s('pot.total', pot2);\n  // award (split; odd chip to the first live seat left of the button)\n  const btn = await g('hand.button');\n  const pfOrder = [(btn + 1) % 3, (btn + 2) % 3, btn];\n  const winnersOrdered = pfOrder.filter(i => c7.winners.includes(i));\n  const share = Math.floor(pot2 / winnersOrdered.length);\n  let rem = pot2 - share * winnersOrdered.length;\n  for (const w of winnersOrdered) {\n    let amt = share;\n    if (rem > 0) { amt += 1; rem -= 1; }\n    await s('stacks.p' + w, (await g('stacks.p' + w)) + amt);\n  }\n  await s('pot.total', 0); await s('pot.collected', 0);\n  for (let i = 0; i < 3; i++) await s('bets.p' + i, 0);\n  await s('hand.phase', 'over');\n  await s('hand.result', { no: handNo, winners: winnersOrdered, pot: pot2, reveal: true, desc: c7.why });\n  await s('match.seq', seq);\n  await s('rules.fired', fired);\n  return done({ ok: true, rule: 'C7', text: actText + ' ' + c7.why, fired, trace });\n}\nawait s('match.seq', seq);\nawait s('rules.fired', fired);\nreturn done({ ok: true, rule: 'C5', text: actText, fired, trace });",
+      "description": "THE REFEREE — sequences rule cells, moves chips/cards, keeps the ledger",
+      "deps": [
+        "action.request"
+      ]
+    },
+    {
+      "id": "action.dispatch",
+      "kind": "program",
+      "code": "\n// push trampoline: listener passes {changed, value}; driver may pass the\n// request directly. Both converge on the same arbitration.\nconst ev = input ?? {};\nlet req = null;\nif (ev.seat != null) req = ev;\nelse if (ev.value?.seat != null) req = ev.value;\nelse if (caller?.metadata?.current?.seat != null) req = caller.metadata.current;\nelse req = (await runtime.get('action.request')).data;\nif (!req || req.seat == null) return { skipped: true };\nreturn (await runtime.call('action.arbiter', req)).data;",
+      "description": "push trampoline: action.request -> action.arbiter",
+      "deps": [
+        "action.request"
+      ]
+    },
+    {
+      "id": "action.push",
+      "kind": "listener",
+      "watch": [
+        "action.request"
+      ],
+      "action": "action.dispatch",
+      "description": "push of one value drives the whole cascade"
+    },
+    {
+      "id": "action.request",
+      "kind": "value",
+      "value": null,
+      "description": "UI writes {seat, action, amount, seq} here — the human input surface"
+    },
+    {
+      "id": "ai.equity",
+      "kind": "program",
+      "code": "\n\nconst RANK_CH = '23456789TJQKA';\nconst RANK_NAME = {2:'deuce',3:'trey',4:'four',5:'five',6:'six',7:'seven',8:'eight',9:'nine',10:'ten',11:'jack',12:'queen',13:'king',14:'ace'};\nconst rnk = (c) => RANK_CH.indexOf(c[0]) + 2;\nconst straightHigh = (list) => {\n  const uq = [...new Set(list)].sort((a, b) => b - a);\n  if (uq.includes(14)) uq.push(1);\n  let run = 1;\n  for (let i = 1; i < uq.length; i++) {\n    run = (uq[i] === uq[i - 1] - 1) ? run + 1 : 1;\n    if (run === 5) return uq[i] + 4;\n  }\n  return 0;\n};\nconst eval7 = (cards) => {\n  const vals = cards.map(c => rnk(c));\n  const cnt = {}; for (const v of vals) cnt[v] = (cnt[v] || 0) + 1;\n  const groups = Object.keys(cnt).map(Number).sort((a, b) => cnt[b] - cnt[a] || b - a);\n  const suitCnt = {}; for (const c of cards) suitCnt[c[1]] = (suitCnt[c[1]] || 0) + 1;\n  const fs = Object.keys(suitCnt).find(s => suitCnt[s] >= 5);\n  if (fs) {\n    const fv = cards.filter(c => c[1] === fs).map(c => rnk(c));\n    const sh = straightHigh(fv);\n    if (sh) return { cat: 8, tie: [sh], name: (sh === 14 ? 'ROYAL FLUSH' : 'straight flush, ' + RANK_NAME[sh] + ' high') };\n  }\n  if (cnt[groups[0]] === 4) return { cat: 7, tie: [groups[0], groups[1]], name: 'quad ' + RANK_NAME[groups[0]] + 's' };\n  if (cnt[groups[0]] === 3 && cnt[groups[1]] >= 2)\n    return { cat: 6, tie: [groups[0], groups[1]], name: 'full house, ' + RANK_NAME[groups[0]] + 's over ' + RANK_NAME[groups[1]] + 's' };\n  if (fs) {\n    const fv = cards.filter(c => c[1] === fs).map(c => rnk(c)).sort((a, b) => b - a).slice(0, 5);\n    return { cat: 5, tie: fv, name: 'flush, ' + RANK_NAME[fv[0]] + ' high' };\n  }\n  const sh = straightHigh(vals);\n  if (sh) return { cat: 4, tie: [sh], name: 'straight, ' + RANK_NAME[sh] + ' high' };\n  if (cnt[groups[0]] === 3) return { cat: 3, tie: [groups[0], groups[1], groups[2]], name: 'trip ' + RANK_NAME[groups[0]] + 's' };\n  if (cnt[groups[0]] === 2 && cnt[groups[1]] === 2) {\n    // three-pair boards: play the two highest pairs; kicker = best remaining rank\n    const p1 = groups[0], p2 = groups[1];\n    const kick = Math.max(...Object.keys(cnt).map(Number).filter(r => r !== p1 && r !== p2));\n    return { cat: 2, tie: [p1, p2, kick], name: 'two pair, ' + RANK_NAME[p1] + 's and ' + RANK_NAME[p2] + 's' };\n  }\n  if (cnt[groups[0]] === 2)\n    return { cat: 1, tie: [groups[0], groups[1], groups[2], groups[3]], name: 'pair of ' + RANK_NAME[groups[0]] + 's' };\n  const hi = [...new Set(vals)].sort((a, b) => b - a).slice(0, 5);\n  return { cat: 0, tie: hi, name: 'high card ' + RANK_NAME[hi[0]] };\n};\nconst cmpHands = (a, b) => {\n  if (a.cat !== b.cat) return a.cat - b.cat;\n  for (let i = 0; i < Math.max(a.tie.length, b.tie.length); i++) {\n    const x = a.tie[i] ?? 0, y = b.tie[i] ?? 0;\n    if (x !== y) return x - y;\n  }\n  return 0;\n};\n\n    const rng = (seed) => { let a = (seed ?? 1) >>> 0;\n      return () => { a |= 0; a = (a + 0x6D2B79F5) | 0;\n        let t = Math.imul(a ^ (a >>> 15), 1 | a);\n        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;\n        return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };\n// MONTE-CARLO EQUITY for a seat: roll the remaining board + opponent holes from\n// deck.state. Folded dead cards are NOT re-added (a small, honest bias — the\n// description cell says so).\nconst g = async (id) => (await runtime.get(id)).data;\nconst seat = input?.seat;\nconst hole = await g('hole.p' + seat);\nif (!hole || hole.length < 2) return { equity: 0.5, trials: 0, why: 'no hole cards' };\nconst comm = [];\nfor (const id2 of ['comm.c1', 'comm.c2', 'comm.c3', 'comm.c4', 'comm.c5']) { const x = await g(id2); if (x) comm.push(x); }\nconst folded = [await g('folded.p0'), await g('folded.p1'), await g('folded.p2')];\nconst opps = [0, 1, 2].filter(i => i !== seat && !folded[i]);\nconst deck = (await g('deck.state')).slice();\nconst trials = input?.trials ?? 60;\nif (deck.length < opps.length * 2 + (5 - comm.length)) return { equity: 0.5, trials: 0, why: 'deck too small' };\nconst rnd = rng((((input?.seed ?? 1) * 9176) + trials) >>> 0);\nlet score = 0;\nfor (let t = 0; t < trials; t++) {\n  const d = deck.slice();\n  const drawn = [];\n  const need = opps.length * 2 + (5 - comm.length);\n  for (let k = 0; k < need; k++) {\n    const j = Math.floor(rnd() * (d.length - k));\n    const last = d.length - 1 - k;\n    const tmp = d[j]; d[j] = d[last]; d[last] = tmp;\n    drawn.push(d[last]);\n  }\n  const board = comm.concat(drawn.slice(opps.length * 2));\n  const mine = eval7(hole.concat(board));\n  let best = 1;\n  for (let o = 0; o < opps.length; o++) {\n    const oh = eval7([drawn[o * 2], drawn[o * 2 + 1]].concat(board));\n    const c = cmpHands(mine, oh);\n    if (c < 0) { best = 0; break; }\n    if (c === 0) best = 0.5;\n  }\n  score += best;\n}\nreturn { equity: score / trials, trials, opps: opps.length, comm: comm.length };",
+      "description": "Monte-Carlo equity vs live opponents (rollout from deck.state)",
+      "deps": []
+    },
+    {
+      "id": "ai.decide",
+      "kind": "program",
+      "code": "\n// LEARNER POLICY — equity rollout x weight cells x opponent model.\n// input {seat, seed, frozen?, log?}. Weights W.p<seat>.* are separate value\n// cells: the learning loop nudges them, and you can watch them drift.\nconst g = async (id) => (await runtime.get(id)).data;\nconst f2 = (x) => Number(x).toFixed(2);\nconst seat = input?.seat;\nif (seat == null) return { skip: true, why: 'ai.decide needs input.seat' };\nconst phase = await g('hand.phase');\nif (phase !== 'play') return { skip: true, why: 'no live hand' };\nif ((await g('to.act')) !== seat) return { skip: true, why: 'not my turn (to.act = P' + (await g('to.act')) + ')' };\nconst bb = await g('bb.size');\nconst bets = [await g('bets.p0'), await g('bets.p1'), await g('bets.p2')];\nconst stacks = [await g('stacks.p0'), await g('stacks.p1'), await g('stacks.p2')];\nconst pot = await g('pot.total');\nconst maxBet = Math.max(...bets);\nconst toCall = maxBet - bets[seat];\nconst stack = stacks[seat];\nconst street = await g('street.current');\nconst streetIdx = ({ preflop: 0, flop: 1, turn: 2, river: 3 })[street] ?? 0;\nconst eqOut = (await runtime.call('ai.equity', { seat, trials: 60, seed: (input?.seed ?? 1) * 31 + streetIdx })).data;\nconst equity = eqOut.equity;\nconst frozen = input?.frozen ? (await g('W.p' + seat + '.frozen')) : null;\nconst pick = async (k) => frozen ? (frozen[k] ?? 0) : (await g('W.p' + seat + '.' + k));\nconst aggro = await pick('aggro');\nconst tight = await pick('tight');\nconst bluff = await pick('bluff');\nconst sticky = await pick('sticky');\nconst adapt = await pick('adapt');\nconst om = await g('om.p' + seat);\nconst oppAggro = om?.opp_aggro ?? 0.7, oppSticky = om?.opp_sticky ?? 0.7;\n\n    const rng = (seed) => { let a = (seed ?? 1) >>> 0;\n      return () => { a |= 0; a = (a + 0x6D2B79F5) | 0;\n        let t = Math.imul(a ^ (a >>> 15), 1 | a);\n        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;\n        return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };\nconst handNo = await g('hand.no');\nconst rnd = rng((((input?.seed ?? 1) * 7919 + handNo * 104729 + streetIdx * 7) >>> 0));\nlet action = 'check', amount = 0, why = '';\nif (toCall <= 0) {\n  const valThresh = 0.5 + tight * 0.06 - aggro * 0.02;\n  let pBet = equity > valThresh ? (0.22 + aggro * 0.2) : (streetIdx > 0 ? bluff * 0.16 : 0.03);\n  if (oppSticky > 1.1) pBet *= (equity > 0.62 ? 1.25 : 0.5);   // exploit a station: value more, bluff less\n  if (oppSticky < 0.55) pBet *= 1.3;                            // exploit a folder: fire more\n  const r = rnd();\n  if (r < pBet) {\n    const size = Math.max(bb, Math.round(pot * (0.45 + 0.2 * Math.min(aggro, 1.5))));\n    action = 'raise'; amount = maxBet + size;\n    why = 'eq ' + f2(equity) + ' vs value line ' + f2(valThresh) + ' -> bet ' + size + ' (aggro ' + f2(aggro) + ', roll ' + f2(r) + ' < ' + f2(pBet) + ')' + (frozen ? ' [frozen]' : '');\n  } else {\n    why = 'eq ' + f2(equity) + ', checks (roll ' + f2(r) + ' >= p(bet) ' + f2(pBet) + ')' + (frozen ? ' [frozen]' : '');\n  }\n} else {\n  const req = toCall / (pot + toCall);\n  const callLine = req * (1 + sticky * 0.3) - adapt * 0.02 * Math.min(oppAggro, 2);\n  const raiseLine = 0.66 - aggro * 0.05;\n  const r = rnd();\n  const lastRaise = await g('last.raise');\n  if (equity > raiseLine && stack > toCall) {\n    const size = Math.max(lastRaise, Math.round(pot * 0.7));\n    action = 'raise'; amount = maxBet + size;\n    why = 'eq ' + f2(equity) + ' > raise line ' + f2(raiseLine) + ' -> raise to ' + amount;\n  } else if (equity >= callLine) {\n    action = 'call';\n    why = 'eq ' + f2(equity) + ' >= needed ' + f2(callLine) + ' (pot odds ' + f2(req) + ', sticky ' + f2(sticky) + ') -> call ' + toCall;\n  } else if (streetIdx >= 2 && oppSticky < 0.9 && r < bluff * 0.12 && stack > toCall) {\n    const size = Math.max(lastRaise, Math.round(pot * 0.8));\n    action = 'raise'; amount = maxBet + size;\n    why = 'eq ' + f2(equity) + ' weak, but opp folds (om.sticky ' + f2(oppSticky) + ') -> bluff-raise to ' + amount + ' (roll ' + f2(r) + ')';\n  } else {\n    action = 'fold';\n    why = 'eq ' + f2(equity) + ' < needed ' + f2(callLine) + ' -> fold ' + toCall;\n  }\n}\nif (input?.log !== false && !frozen) {\n  const hlog = await g('hand.log.p' + seat);\n  await runtime.set('hand.log.p' + seat, [...hlog, { street, equity, action, toCall, pot }]);\n  const th = await g('ai.thoughts.p' + seat);\n  await runtime.set('ai.thoughts.p' + seat, [...th.slice(-59), {\n    hand: handNo, street, seat,\n    text: 'P' + seat + ' [' + street + '] eq ' + f2(equity) + ', pot ' + pot + (toCall > 0 ? ', facing ' + toCall : '') + ' -> ' + action.toUpperCase() + (amount ? ' ' + amount : '') + ' | ' + why }]);\n}\nconst seq = (await g('match.seq')) + 1;\nreturn (await runtime.call('action.arbiter', { seat, action, amount, seq, thought: why })).data;",
+      "description": "learner policy: equity x W.p<seat>.* x opponent model -> action.arbiter",
+      "deps": [
+        "to.act",
+        "hand.phase"
+      ]
+    },
+    {
+      "id": "fish.decide",
+      "kind": "program",
+      "code": "\n// FISH POLICY (control group) — calls small bets, folds big ones, never raises.\n// No equity rollout, no weights: deliberately beatable and frozen forever.\nconst g = async (id) => (await runtime.get(id)).data;\nconst seat = input?.seat;\nif (seat == null) return { skip: true, why: 'fish.decide needs input.seat' };\nconst phase = await g('hand.phase');\nif (phase !== 'play') return { skip: true, why: 'no live hand' };\nif ((await g('to.act')) !== seat) return { skip: true, why: 'not my turn (to.act = P' + (await g('to.act')) + ')' };\nconst bb = await g('bb.size');\nconst bets = [await g('bets.p0'), await g('bets.p1'), await g('bets.p2')];\nconst maxBet = Math.max(...bets);\nconst toCall = maxBet - bets[seat];\nlet action, amount = 0, why;\nif (toCall <= 0) { action = 'check'; why = 'fish checks (free card)'; }\nelse if (toCall <= bb * 2) { action = 'call'; why = 'fish calls ' + toCall + ' (small bet, always curious)'; }\nelse { action = 'fold'; why = 'fish folds to ' + toCall + ' (too rich for the station)'; }\nconst th = await g('ai.thoughts.p' + seat);\nawait runtime.set('ai.thoughts.p' + seat, [...th.slice(-59), {\n  hand: await g('hand.no'), street: await g('street.current'), seat,\n  text: 'P' + seat + ' [fish] -> ' + action.toUpperCase() + ' | ' + why }]);\nconst seq = (await g('match.seq')) + 1;\nreturn (await runtime.call('action.arbiter', { seat, action, amount, seq, thought: why })).data;",
+      "description": "control group: frozen call-station policy",
+      "deps": [
+        "to.act",
+        "hand.phase"
+      ]
+    },
+    {
+      "id": "ai.thoughts.p0",
+      "kind": "value",
+      "value": [],
+      "description": "P0's decision commentary (fish: short)"
+    },
+    {
+      "id": "hand.log.p0",
+      "kind": "value",
+      "value": [],
+      "description": "P0's decisions this hand (unused by the fish brain, kept uniform)"
+    },
+    {
+      "id": "learn.last_stack.p0",
+      "kind": "value",
+      "value": null,
+      "description": "P0 stack marker (unused by the fish brain, kept uniform)"
+    },
+    {
+      "id": "W.p1.aggro",
+      "kind": "value",
+      "value": 0.6,
+      "description": "P1 strategy weight: raise/bet propensity scale — nudge loop refines this cell; watch it drift"
+    },
+    {
+      "id": "W.p1.tight",
+      "kind": "value",
+      "value": 0,
+      "description": "P1 strategy weight: value threshold offset — nudge loop refines this cell; watch it drift"
+    },
+    {
+      "id": "W.p1.bluff",
+      "kind": "value",
+      "value": 0.3,
+      "description": "P1 strategy weight: bluff frequency — nudge loop refines this cell; watch it drift"
+    },
+    {
+      "id": "W.p1.sticky",
+      "kind": "value",
+      "value": 0.2,
+      "description": "P1 strategy weight: call-down propensity — nudge loop refines this cell; watch it drift"
+    },
+    {
+      "id": "W.p1.adapt",
+      "kind": "value",
+      "value": 0.2,
+      "description": "P1 strategy weight: opponent-model gain — nudge loop refines this cell; watch it drift"
+    },
+    {
+      "id": "W.p1.frozen",
+      "kind": "value",
+      "value": null,
+      "description": "P1's frozen gen-1 weights (the control group for held-out eval)"
+    },
+    {
+      "id": "om.p1",
+      "kind": "value",
+      "value": {
+        "opp_aggro": 0.7,
+        "opp_sticky": 0.7,
+        "samples": 0
+      },
+      "description": "P1's opponent model (EMA over the ledger)"
+    },
+    {
+      "id": "ai.thoughts.p1",
+      "kind": "value",
+      "value": [],
+      "description": "P1's decision commentary — the agent UX trace (cap 60)"
+    },
+    {
+      "id": "hand.log.p1",
+      "kind": "value",
+      "value": [],
+      "description": "P1's decisions this hand (consumed by learn.update)"
+    },
+    {
+      "id": "learn.gen.p1",
+      "kind": "value",
+      "value": 0,
+      "description": "P1 generations learned"
+    },
+    {
+      "id": "learn.last_stack.p1",
+      "kind": "value",
+      "value": null,
+      "description": "P1 stack at the previous learn.update (net = outcome signal)"
+    },
+    {
+      "id": "learn.receipts.p1",
+      "kind": "value",
+      "value": [],
+      "description": "P1 fnv1a64 witness chain: one receipt per hand learned"
+    },
+    {
+      "id": "learn.last.p1",
+      "kind": "value",
+      "value": null,
+      "description": "snapshot of P1's latest update"
+    },
+    {
+      "id": "W.p2.aggro",
+      "kind": "value",
+      "value": 0.6,
+      "description": "P2 strategy weight: raise/bet propensity scale — nudge loop refines this cell; watch it drift"
+    },
+    {
+      "id": "W.p2.tight",
+      "kind": "value",
+      "value": 0,
+      "description": "P2 strategy weight: value threshold offset — nudge loop refines this cell; watch it drift"
+    },
+    {
+      "id": "W.p2.bluff",
+      "kind": "value",
+      "value": 0.3,
+      "description": "P2 strategy weight: bluff frequency — nudge loop refines this cell; watch it drift"
+    },
+    {
+      "id": "W.p2.sticky",
+      "kind": "value",
+      "value": 0.2,
+      "description": "P2 strategy weight: call-down propensity — nudge loop refines this cell; watch it drift"
+    },
+    {
+      "id": "W.p2.adapt",
+      "kind": "value",
+      "value": 0.2,
+      "description": "P2 strategy weight: opponent-model gain — nudge loop refines this cell; watch it drift"
+    },
+    {
+      "id": "W.p2.frozen",
+      "kind": "value",
+      "value": null,
+      "description": "P2's frozen gen-1 weights (the control group for held-out eval)"
+    },
+    {
+      "id": "om.p2",
+      "kind": "value",
+      "value": {
+        "opp_aggro": 0.7,
+        "opp_sticky": 0.7,
+        "samples": 0
+      },
+      "description": "P2's opponent model (EMA over the ledger)"
+    },
+    {
+      "id": "ai.thoughts.p2",
+      "kind": "value",
+      "value": [],
+      "description": "P2's decision commentary — the agent UX trace (cap 60)"
+    },
+    {
+      "id": "hand.log.p2",
+      "kind": "value",
+      "value": [],
+      "description": "P2's decisions this hand (consumed by learn.update)"
+    },
+    {
+      "id": "learn.gen.p2",
+      "kind": "value",
+      "value": 0,
+      "description": "P2 generations learned"
+    },
+    {
+      "id": "learn.last_stack.p2",
+      "kind": "value",
+      "value": null,
+      "description": "P2 stack at the previous learn.update (net = outcome signal)"
+    },
+    {
+      "id": "learn.receipts.p2",
+      "kind": "value",
+      "value": [],
+      "description": "P2 fnv1a64 witness chain: one receipt per hand learned"
+    },
+    {
+      "id": "learn.last.p2",
+      "kind": "value",
+      "value": null,
+      "description": "snapshot of P2's latest update"
+    },
+    {
+      "id": "learn.alpha",
+      "kind": "value",
+      "value": 0.12,
+      "description": "nudge learning rate"
+    },
+    {
+      "id": "learn.update",
+      "kind": "program",
+      "code": "\n// LEARN.UPDATE — hand-level credit nudges on separate weight cells.\n// input {seat}. Net chips since the last call = the outcome signal; every\n// nudge carries a human-readable reason (the visible refinement).\nconst g = async (id) => (await runtime.get(id)).data;\n\n    const fnv1a64 = (s) => { let h = 0xcbf29ce484222325n;\n      const p = 0x100000001b3n, m = 0xffffffffffffffffn;\n      for (let i = 0; i < s.length; i++) { h ^= BigInt(s.charCodeAt(i)); h = (h * p) & m; }\n      return h.toString(16).padStart(16, '0'); };\n    const canon = (row) => { const s = {}; for (const k of Object.keys(row).sort()) s[k] = row[k];\n      return JSON.stringify(s); };\n    const GENESIS_PREV = '0'.repeat(16);\nconst f2 = (x) => Number(x).toFixed(2);\nconst seat = input?.seat;\nif (seat == null) return { skip: true, why: 'learn.update needs input.seat' };\nconst bb = await g('bb.size');\nconst alpha = await g('learn.alpha');\nconst stack = await g('stacks.p' + seat);\nconst lastStack = await g('learn.last_stack.p' + seat);\nif (lastStack == null) {\n  await runtime.set('learn.last_stack.p' + seat, stack);\n  return { baseline: true, seat, stack };\n}\nconst net = stack - lastStack;\nconst netBB = Math.round((net / bb) * 10) / 10;\nconst s = Math.max(-1, Math.min(1, net / (bb * 10)));\nconst keys = ['aggro', 'tight', 'bluff', 'sticky', 'adapt'];\nconst theta = {};\nfor (const k of keys) theta[k] = await g('W.p' + seat + '.' + k);\nconst frozen = await g('W.p' + seat + '.frozen');\nif (!frozen || !frozen.aggro) await runtime.set('W.p' + seat + '.frozen', { ...theta });  // gen-1 snapshot\nconst decisions = await g('hand.log.p' + seat);\nconst nudges = [];\nconst bump = (k, d, why) => { theta[k] = theta[k] + d; nudges.push({ key: k, delta: Math.round(d * 1000) / 1000, why }); };\nfor (const d of decisions) {\n  if (d.action === 'raise' && s > 0) bump('aggro', alpha * s * 0.6, d.street + ' raise paid off (hand net ' + netBB + 'bb)');\n  if (d.action === 'raise' && s < 0 && d.equity < 0.45) bump('tight', alpha * Math.abs(s) * 0.3, d.street + ' aggression unpaid (hand net ' + netBB + 'bb) -> value tighter');\n  if (d.action === 'call' && s < 0 && d.equity < 0.4) {\n    bump('sticky', -alpha * Math.abs(s) * 0.4, d.street + ' chase lost -> call less');\n    bump('tight', alpha * Math.abs(s) * 0.2, 'loose call taxed');\n  }\n  if (d.action === 'fold' && d.equity > 0.62) bump('tight', -alpha * (d.equity - 0.6), 'folded ' + f2(d.equity) + ' equity — hindsight says too tight');\n  if (d.action === 'call' && s > 0 && d.equity > 0.6) bump('sticky', alpha * 0.25, 'big hand paid off calling down');\n}\nconst CLAMP = { aggro: [0.15, 2.5], tight: [-1, 1.5], bluff: [0, 1.2], sticky: [-1, 1.5], adapt: [0, 1.5] };\nfor (const k of keys) theta[k] = Math.max(CLAMP[k][0], Math.min(CLAMP[k][1], Math.round(theta[k] * 1000) / 1000));\nfor (const k of keys) await runtime.set('W.p' + seat + '.' + k, theta[k]);\n// opponent model: this hand's ledger, EMA'd\nconst handNo = await g('hand.no');\nconst events = await g('log.events');\nconst acts = events.filter(e => e.kind === 'act' && e.hand === handNo && e.seat !== seat);\nconst oppRaises = acts.filter(e => e.action === 'raise').length;\nconst oppCalls = acts.filter(e => e.action === 'call').length;\nconst streetsSeen = new Set(acts.map(e => e.street)).size || 1;\nconst om = await g('om.p' + seat);\nconst om2 = {\n  opp_aggro: Math.round((om.opp_aggro * 0.8 + 0.2 * Math.min(2, oppRaises / streetsSeen)) * 1000) / 1000,\n  opp_sticky: Math.round((om.opp_sticky * 0.8 + 0.2 * Math.min(2, oppCalls / streetsSeen)) * 1000) / 1000,\n  samples: (om?.samples ?? 0) + 1,\n};\nawait runtime.set('om.p' + seat, om2);\nawait runtime.set('learn.last_stack.p' + seat, stack);\nconst gen = (await g('learn.gen.p' + seat)) + 1;\nawait runtime.set('learn.gen.p' + seat, gen);\nconst receipts = await g('learn.receipts.p' + seat);\nconst prev = receipts.length ? receipts[receipts.length - 1].row_hash : GENESIS_PREV;\nconst fields = { seq: gen, hand: handNo, net_bb: netBB, stack,\n  theta_hash: fnv1a64(canon(theta)), nudge_count: nudges.length };\nconst row = { ...fields, prev_hash: prev, row_hash: fnv1a64(canon({ ...fields, prev_hash: prev })) };\nawait runtime.set('learn.receipts.p' + seat, [...receipts, row]);\nawait runtime.set('hand.log.p' + seat, []);\nawait runtime.set('learn.last.p' + seat, { gen, theta, nudges, om: om2, receipt: row });\nreturn { gen, seat, net_bb: netBB, nudges, theta, om: om2, receipt: row };",
+      "description": "per-hand credit nudges on separate weight cells + witness receipt (input {seat})",
+      "deps": [
+        "hand.phase"
+      ]
+    },
+    {
+      "id": "legal.actions",
+      "kind": "program",
+      "code": "\n// what the seat to act may legally do right now (viewer buttons + harness)\nconst g = async (id) => (await runtime.get(id)).data;\nconst phase = await g('hand.phase');\nif (phase !== 'play') return { seat: null, options: [] };\nconst seat = await g('to.act');\nif (seat == null || seat < 0) return { seat: null, options: [] };\nconst bets = [await g('bets.p0'), await g('bets.p1'), await g('bets.p2')];\nconst stacks = [await g('stacks.p0'), await g('stacks.p1'), await g('stacks.p2')];\nconst maxBet = Math.max(...bets);\nconst toCall = maxBet - bets[seat];\nconst lastRaise = await g('last.raise');\nconst cap = await g('allin.cap');\nconst own = bets[seat], stack = stacks[seat];\nconst options = [{ action: 'fold', label: 'Fold' }];\nif (toCall <= 0) options.push({ action: 'check', label: 'Check' });\nelse options.push({ action: 'call', label: 'Call ' + Math.min(toCall, stack), to_call: Math.min(toCall, stack) });\nif (toCall < stack) {\n  const min = Math.min(maxBet + lastRaise, own + stack);\n  options.push({ action: 'raise', label: 'Raise to ' + min, min, max: Math.min(own + stack, cap) });\n}\nreturn { seat, to_call: toCall, options };",
+      "description": "what the seat to act may legally do (viewer buttons + harness)",
+      "deps": [
+        "to.act",
+        "hand.phase"
+      ]
+    },
+    {
+      "id": "table.public",
+      "kind": "program",
+      "code": "\n// the SHARED-SCREEN snapshot: every hole card goes through rule.C10.check,\n// so what leaves this cell is exactly what a shared screen may render.\nconst g = async (id) => (await runtime.get(id)).data;\nconst view = await g('view.seat');\nconst reveal = await g('reveal.state');\nconst seats = [];\nfor (let i = 0; i < 3; i++) {\n  const hole = (await g('hole.p' + i)) ?? [];\n  const folded = await g('folded.p' + i);\n  const c10 = (await runtime.call('rule.C10.check', { view_seat: view, reveal, seat: i, folded })).data;\n  seats.push({\n    stack: await g('stacks.p' + i), bet: await g('bets.p' + i),\n    folded, allin: await g('allin.p' + i),\n    proj: hole.length ? (c10.show ? hole.join(' ') : '?? ??') : '—',\n  });\n}\nconst comm = [];\nfor (let i = 1; i <= 5; i++) comm.push(await g('comm.c' + i));\nreturn { view_seat: view, reveal, street: await g('street.current'), phase: await g('hand.phase'),\n  pot: await g('pot.total'), to_act: await g('to.act'), button: await g('hand.button'),\n  result: await g('hand.result'), comm, seats };",
+      "description": "the shared-screen snapshot: every card goes through rule.C10.check",
+      "deps": [
+        "reveal.state",
+        "view.seat"
+      ]
+    },
+    {
+      "id": "reveal.show",
+      "kind": "program",
+      "code": "\n// the explicit \"call to show\" — flips every projection cell open (C10)\nconst g = async (id) => (await runtime.get(id)).data;\nawait runtime.set('reveal.state', true);\nconst lg = await g('log.events');\nawait runtime.set('log.events', [...lg.slice(-299), { ts: Date.now(), kind: 'show', text: 'SHOW called — hole cards revealed (C10 projections open).' }]);\nreturn { ok: true, text: 'cards shown.' };",
+      "description": "the explicit CALL TO SHOW — flips every projection open (C10)",
+      "deps": []
+    },
+    {
+      "id": "match.step",
+      "kind": "program",
+      "code": "\n// one AI action for whoever is to act. input {seed?, frozen?, log?}\n// Routes through seats.cfg: 'fish' | 'learn' | 'human'. The arbiter owns\n// match.seq — this cell must NOT pre-increment it.\nconst g = async (id) => (await runtime.get(id)).data;\nconst phase = await g('hand.phase');\nif (phase !== 'play') return { over: true };\nconst seat = await g('to.act');\nif (seat == null || seat < 0) return { over: true, why: 'no actor' };\nconst cfg = await g('seats.cfg');\nconst kind = cfg[String(seat)] ?? 'fish';\nconst seed = input?.seed ?? 1;\nif (kind === 'human') return { wait: true, seat };\nif (kind === 'learn') return (await runtime.call('ai.decide', { seat, seed, frozen: input?.frozen ?? false, log: input?.log ?? true })).data;\nreturn (await runtime.call('fish.decide', { seat, seed })).data;",
+      "description": "one AI action (input {seed?, frozen?, log?}); loop it for computer-vs-computer",
+      "deps": [
+        "hand.phase",
+        "to.act"
+      ]
+    },
+    {
+      "id": "new_match",
+      "kind": "program",
+      "code": "\n// reset the table (stacks, weights, opponent models) — receipts are KEPT:\n// the learning history is the artifact, not the chips.\nconst s = (id, val) => runtime.set(id, val);\nfor (let i = 0; i < 3; i++) {\n  await s('stacks.p' + i, 100);\n  await s('bets.p' + i, 0);\n  await s('contrib.p' + i, 0);\n  await s('folded.p' + i, false);\n  await s('allin.p' + i, false);\n  await s('hole.p' + i, []);\n  await s('hand.log.p' + i, []);\n  await s('ai.thoughts.p' + i, []);\n  await s('learn.last_stack.p' + i, null);\n}\nfor (const seat of [1, 2]) {\n  await s('learn.gen.p' + seat, 0);\n  await s('W.p' + seat + '.frozen', null);\n  await s('om.p' + seat, { opp_aggro: 0.7, opp_sticky: 0.7, samples: 0 });\n  for (const k of ['aggro', 'tight', 'bluff', 'sticky', 'adapt'])\n    await s('W.p' + seat + '.' + k, { aggro: 0.6, tight: 0, bluff: 0.3, sticky: 0.2, adapt: 0.2 }[k]);\n}\nawait s('hand.no', 0);\nawait s('hand.phase', 'idle');\nawait s('street.current', 'none');\nawait s('pot.total', 0);\nawait s('pot.collected', 0);\nfor (let i = 1; i <= 5; i++) await s('comm.c' + i, '');\nawait s('hand.result', null);\nawait s('reveal.state', false);\nawait s('to.act', -1);\nawait s('pending.list', []);\nawait s('match.seq', 0);\nconst lg = (await runtime.get('log.events')).data;\nawait s('log.events', [...lg.slice(-199), { ts: Date.now(), kind: 'new_match', text: 'table reset — stacks 100, weights re-initialized (receipt chains preserved)' }]);\nreturn { ok: true };",
+      "description": "reset table + weights; receipt chains preserved",
+      "deps": [
+        "hand.phase"
+      ]
+    },
+    {
+      "id": "log.events",
+      "kind": "value",
+      "value": [],
+      "description": "append-only audit: deals, actions, refusals, shows, resets (cap 300)"
+    }
+  ]
+}
