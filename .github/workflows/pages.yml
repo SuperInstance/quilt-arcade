@@ -1,0 +1,26 @@
+name: pages
+on:
+  push: { branches: [main] }
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+jobs:
+  deploy:
+    environment: { name: github-pages }
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: stage playable arcade
+        run: |
+          mkdir -p _site
+          for g in tictactoe reversi connect4 gomoku holdem; do
+            cp -r "games/$g" "_site/$g"
+            rm -rf "_site/$g/node_modules"
+          done
+          printf '<!doctype html><meta charset=utf-8><title>Quilt Arcade</title><body style="font-family:monospace;background:#0b0f14;color:#cfe3ff;max-width:640px;margin:4rem auto"><h1>QUILT ARCADE</h1><p>The cells are the game. Play in the browser:</p><ul><li><a style=color:#7fd1ff href="./tictactoe/">tictactoe</a></li><li><a style=color:#7fd1ff href="./reversi/">reversi</a></li><li><a style=color:#7fd1ff href="./connect4/">connect4</a></li><li><a style=color:#7fd1ff href="./gomoku/">gomoku</a></li><li><a style=color:#7fd1ff href="./holdem/">holdem</a></li></ul></body>' > _site/index.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: _site }
+      - uses: actions/deploy-pages@v4
