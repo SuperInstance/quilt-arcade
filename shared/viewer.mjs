@@ -13,7 +13,9 @@
 // Modes: Human vs Human · Human vs AI · AI vs AI (with per-game learning).
 // The driver (see shared/driver.mjs) owns the engine; the viewer owns pixels.
 
-export function mountGame(root, driver) {
+import { mountReceipts } from './receipts.mjs';
+
+export function mountGame(root, driver, extras = {}) {
   root.classList.add('qa-root');
   root.innerHTML = `
     <style>${CSS}</style>
@@ -68,6 +70,13 @@ export function mountGame(root, driver) {
     </div>`;
 
   const $ = (id) => root.querySelector('#' + id);
+
+  // receipts surface — the shared renderer every plugin mounts (optional,
+  // off by default so plain embeds are unchanged).
+  let receiptsApi = null;
+  if (extras.receipts && extras.engine) {
+    receiptsApi = mountReceipts(root.querySelector('.qa-side-col'), extras.engine, extras.receipts);
+  }
   const boardEl = $('qa-board'), bookEl = $('qa-book'), logEl = $('qa-log');
   const bubbleEl = $('qa-bubble'), chipEl = $('qa-bubble-chip'), textEl = $('qa-bubble-text');
   const scoresEl = $('qa-scores'), learnEl = $('qa-learnstrip');
@@ -352,7 +361,7 @@ export function mountGame(root, driver) {
   driver.setMode('hvae');
   (async () => { await refresh(); })();
 
-  return { refresh };
+  return { refresh, receipts: receiptsApi };
 }
 
 function escapeHtml(s) {

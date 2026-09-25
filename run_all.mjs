@@ -1,17 +1,77 @@
-// QUILT ARCADE — run every playtest harness and print the scoreboard.
-// Also aggregates the learning experiments into experiments/learning_curves.md.
+// QUILT ARCADE — plugin smoke runner + full playtest gate.
 //
 //   node run_all.mjs
+//
+// Phase A (plugin gate): discovers every games/*/manifest.json, loads the
+// two-file plugin surface (module + manifest) under a stub DOM, validates
+// manifest declarations against the built sheet, then boots each plugin
+// headlessly and asserts it emits ≥1 receipt — chained sources must
+// re-derive from GENESIS. FAIL-first: this gate existed before the games
+// were pluginized, and failed until every plugin landed.
+//
+// Phase B (behavior gate): runs each game's full playtest harness
+// (behavior-preserving — the pin from before the refactor) and aggregates
+// experiments/learning_curves.md.
 
 import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { discoverPlugins, installStubDom, loadPlugin, smokePlugin, validateSheet } from './plugins.mjs';
+import { assertSlotsValid, createSlot, SLOT_NAMES } from './slots/index.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const games = ['tictactoe', 'reversi', 'connect4', 'gomoku', 'holdem'];
 
-console.log('QUILT ARCADE — full playtest run\n' + '='.repeat(46));
+console.log('QUILT ARCADE — plugin smoke + full playtest run\n' + '='.repeat(52));
+
+// ── Phase A: plugin smoke ────────────────────────────────────────────────────
+installStubDom();
+assertSlotsValid();
+
+const smokeResults = [];
+const found = discoverPlugins(join(here, 'games'));
+const foundIds = new Set(found.map((f) => f.id));
+console.log(`\n▶ PHASE A — plugin smoke (${found.length} manifests discovered)`);
+
+// a game directory without a manifest is a plugin-gate failure
+for (const game of games) {
+  if (!foundIds.has(game)) {
+    smokeResults.push({ game, ok: false, detail: 'no manifest.json — not a plugin yet' });
+    console.log(`  ✗ ${game.padEnd(12)} no manifest.json — not a plugin yet`);
+  }
+}
+
+for (const foundPlugin of found) {
+  const t0 = Date.now();
+  let ok = true;
+  const fails = [];
+  let plugin = null;
+  try {
+    plugin = await loadPlugin(foundPlugin);
+    fails.push(...plugin.errors);
+    if (!fails.length) {
+      fails.push(...validateSheet(plugin));
+      // declared slots must resolve against the registry
+      for (const name of plugin.manifest.slots ?? []) {
+        if (!SLOT_NAMES.includes(name)) { fails.push(`unknown slot '${name}'`); continue; }
+        const slot = createSlot(name);
+        if (slot.credentials.configured && !process.env[slot.credentials.env])
+          fails.push(`slot '${name}' claims configured credentials but ${slot.credentials.env} is unset`);
+      }
+    }
+    if (!fails.length) await smokePlugin(plugin);
+  } catch (e) {
+    fails.push(e.message);
+  }
+  ok = fails.length === 0;
+  smokeResults.push({ game: foundPlugin.id, ok, detail: fails.join(' | ') });
+  console.log(`  ${ok ? '✓' : '✗'} ${foundPlugin.id.padEnd(12)} boots + receipts + chains  (${Date.now() - t0}ms)`);
+  if (!ok) console.log(`      ${fails.join('\n      ')}`);
+}
+
+// ── Phase B: full playtest harnesses (behavior-preserving) ──────────────────
+console.log('\n▶ PHASE B — playtest harnesses');
 const results = [];
 for (const game of games) {
   process.stdout.write(`\n▶ ${game}\n`);
@@ -28,12 +88,16 @@ for (const game of games) {
   console.log(`  ${ok ? '✓' : '✗'} ${pass}/${total} checks in ${ms}ms`);
 }
 
+// ── scoreboard ───────────────────────────────────────────────────────────────
 console.log('\nSCOREBOARD');
-console.log('─'.repeat(46));
-for (const r of results) console.log(`${r.ok ? '✓' : '✗'} ${r.game.padEnd(12)} ${r.pass}/${r.total} green  (${r.ms}ms)`);
-const allOk = results.every(r => r.ok);
-console.log('─'.repeat(46));
-console.log(allOk ? `ALL GREEN — ${results.reduce((s, r) => s + r.pass, 0)} checks across ${results.length} games` : 'FAILURES PRESENT');
+console.log('─'.repeat(52));
+for (const r of smokeResults) console.log(`${r.ok ? '✓' : '✗'} ${('[smoke] ' + r.game).padEnd(22)} ${r.ok ? 'plugin green' : r.detail}`);
+for (const r of results) console.log(`${r.ok ? '✓' : '✗'} ${('[play] ' + r.game).padEnd(22)} ${r.pass}/${r.total} green  (${r.ms}ms)`);
+const allOk = smokeResults.every((r) => r.ok) && results.every((r) => r.ok);
+console.log('─'.repeat(52));
+console.log(allOk
+  ? `ALL GREEN — ${smokeResults.length} plugins smoke-clean, ${results.reduce((s, r) => s + r.pass, 0)} checks across ${results.length} games`
+  : 'FAILURES PRESENT');
 
 // ── aggregate the learning experiments ────────────────────────────────────────
 const lines = ['# Learning curves — quilt-arcade', '',
