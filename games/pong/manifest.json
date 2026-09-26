@@ -1,0 +1,60 @@
+{
+  "id": "pong",
+  "version": "1.0.0",
+  "title": "Pong — realtime laws on the discrete sheet",
+  "kind": "physics-game",
+  "entry": "./module.mjs",
+  "cells": [
+    "ai.track",
+    "ball.vx",
+    "ball.vy",
+    "ball.x",
+    "ball.y",
+    "log.events",
+    "match.seq",
+    "match.step",
+    "new_game",
+    "paddle.left",
+    "paddle.right",
+    "phase.current",
+    "rule.W1.check",
+    "rule.W1.law",
+    "rule.W1.verdict",
+    "rule.W2.check",
+    "rule.W2.law",
+    "rule.W2.verdict",
+    "rule.W3.check",
+    "rule.W3.law",
+    "rule.W3.verdict",
+    "rule.W4.check",
+    "rule.W4.law",
+    "rule.W4.verdict",
+    "rules.book",
+    "rules.fired",
+    "rules.verdict",
+    "score.left",
+    "score.right",
+    "serve.ball",
+    "serve.seed",
+    "tick.arbiter",
+    "tick.count",
+    "winner.current"
+  ],
+  "listeners": [],
+  "receipts": {
+    "sources": [
+      {
+        "cell": "log.events",
+        "chained": false,
+        "hint": "log.events — the sheet audit trail: new_game, paddle hits, points, serves, closure"
+      }
+    ],
+    "min": 1
+  },
+  "deps": {
+    "engine": "../../engine/index.js",
+    "shared": [
+      "kit"
+    ]
+  }
+}
