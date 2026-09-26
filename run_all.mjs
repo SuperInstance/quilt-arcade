@@ -21,7 +21,7 @@ import { discoverPlugins, installStubDom, loadPlugin, smokePlugin, validateSheet
 import { assertSlotsValid, createSlot, SLOT_NAMES } from './slots/index.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const games = ['tictactoe', 'reversi', 'connect4', 'gomoku', 'holdem'];
+const games = ['tictactoe', 'reversi', 'connect4', 'gomoku', 'holdem', 'pong'];
 
 console.log('QUILT ARCADE — plugin smoke + full playtest run\n' + '='.repeat(52));
 
