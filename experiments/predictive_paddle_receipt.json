@@ -1,0 +1,103 @@
+{
+  "schema": "predictive_paddle/v1",
+  "prereg": "experiments/predictive_paddle.PREREG.md (commit c3deef2, sealed before run)",
+  "model": {
+    "name": "flycx-v2-certainty-gated",
+    "ported_from": "SuperInstance/chiaroscuro PR #6 (tools/fly_cx.py)",
+    "constants": {
+      "bins": 32,
+      "A0": 0.5,
+      "commit_gain": 0.15,
+      "reject_shrink": 0.7,
+      "event_decay": 0.85,
+      "cert_decay": 0.98
+    }
+  },
+  "seed": 20261001,
+  "matches_per_arm": 50,
+  "m1": {
+    "h1": {
+      "rate": 0.2083,
+      "pass": false,
+      "n": 24
+    },
+    "h1_all_serves": 0.1136,
+    "h2": {
+      "rate": 0.1404,
+      "pass": false,
+      "n": 57
+    },
+    "between": {
+      "mean_err": 17.462,
+      "max_err": 58.098,
+      "n": 18375
+    },
+    "psi": {
+      "commit": 1605,
+      "reject": 72,
+      "abstain": 1858
+    },
+    "serves": 44,
+    "leftBoundServes": 24,
+    "leftReturns": 57,
+    "eventsPerMatch": {
+      "min": 28,
+      "med": 70,
+      "max": 148
+    }
+  },
+  "m1_chain": {
+    "rows": 3585,
+    "head": "035b0f940665b12c",
+    "verified": true
+  },
+  "m2": {
+    "control_wr": 0.86,
+    "advisory_wr": 0.94,
+    "modes": {
+      "attractor": 6513,
+      "reactive-fallback": 196206,
+      "reactive-law": 0
+    },
+    "advisory_share": 0.0321,
+    "fallback_share": 0.9679
+  },
+  "verdicts": {
+    "H1": {
+      "rate": 0.2083,
+      "pass": false,
+      "n": 24,
+      "all_serves_rate": 0.1136,
+      "detail": "left-bound serves, err<=1.5 within <=12 ticks of the serve; right-bound serves are away-abstains by design (PREREG erratum, FINDINGS)"
+    },
+    "H2": {
+      "rate": 0.1404,
+      "pass": false,
+      "n": 57,
+      "detail": "re-capture within <=2 events after own-return abstain"
+    },
+    "H3": {
+      "pass": true,
+      "control_wr": 0.86,
+      "advisory_wr": 0.94,
+      "detail": "advisory >= reactive control (non-inferiority)"
+    },
+    "H4": {
+      "pass": true,
+      "advisory_wr": 0.94,
+      "detail": "advisory >= 55%"
+    },
+    "H5": {
+      "pass": true,
+      "advisory_share": 0.0321,
+      "fallback_share": 0.9679,
+      "detail": "per-tick mode census via side-effect-inert probe (write overwritten by next arbiter track); game audit log stays pristine"
+    },
+    "determinism": {
+      "pass": true,
+      "detail": "M1 seeds 1..3 run twice, chain head + H1 byte-equal"
+    }
+  },
+  "overall": "FAIL",
+  "wall_ms": 161195
+}
