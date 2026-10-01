@@ -1,0 +1,111 @@
+{
+  "schema": "predictive_paddle_v2/v1",
+  "prereg": "experiments/predictive_paddle_v2.PREREG.md (sealed; sole delta vs v1 = commit write rule)",
+  "failure_history": "experiments/predictive_paddle.FINDINGS.md (v1 sealed FAIL: standing-mass dilution)",
+  "model": {
+    "name": "flycx-v2-error-scaled-pull",
+    "ported_from": "SuperInstance/chiaroscuro PR #6 (tools/fly_cx.py), v1 lineage",
+    "constants": {
+      "bins": 32,
+      "A0": 0.5,
+      "commit_gain": 0.15,
+      "reject_shrink": 0.7,
+      "event_decay": "0.85 (unused in v2 write rule — replaced by pull w)",
+      "cert_decay": 0.98,
+      "pull": "w = max(GAIN, min(0.85, err/30)) * (1-A_eff)"
+    }
+  },
+  "seed": 20261001,
+  "matches_per_arm": 50,
+  "m1": {
+    "h1": {
+      "rate": 0.125,
+      "pass": false,
+      "n": 24
+    },
+    "h1_all_serves": 0.0682,
+    "h2": {
+      "rate": 0.1356,
+      "pass": false,
+      "n": 59
+    },
+    "between": {
+      "mean_err": 11.029,
+      "max_err": 57.447,
+      "n": 2613
+    },
+    "psi": {
+      "commit": 1666,
+      "reject": 11,
+      "abstain": 1858
+    },
+    "serves": 44,
+    "leftBoundServes": 24,
+    "leftReturns": 59,
+    "eventsPerMatch": {
+      "min": 28,
+      "med": 70,
+      "max": 148
+    }
+  },
+  "m1_chain": {
+    "rows": 3585,
+    "head": "8001cdc937d7de9c",
+    "verified": true
+  },
+  "m2": {
+    "control_wr": 0.86,
+    "advisory_wr": 1,
+    "modes": {
+      "attractor": 610,
+      "reactive-fallback": 202220,
+      "reactive-law": 0
+    },
+    "advisory_share": 0.003,
+    "fallback_share": 0.997
+  },
+  "verdicts": {
+    "H1": {
+      "rate": 0.125,
+      "pass": false,
+      "n": 24,
+      "all_serves_rate": 0.0682,
+      "v1_rate": 0.2083,
+      "detail": "left-bound serves, err<=1.5 within <=12 ticks; v1 comparison recorded (dilution diagnosis prediction: pass)"
+    },
+    "H2": {
+      "rate": 0.1356,
+      "pass": false,
+      "n": 59,
+      "v1_rate": 0.1404,
+      "detail": "re-capture within <=2 events after own-return abstain"
+    },
+    "H3": {
+      "pass": true,
+      "control_wr": 0.86,
+      "advisory_wr": 1,
+      "v1": {
+        "control": 0.86,
+        "advisory": 0.94
+      },
+      "detail": "advisory >= reactive control (non-inferiority)"
+    },
+    "H4": {
+      "pass": true,
+      "advisory_wr": 1,
+      "detail": "advisory >= 55%"
+    },
+    "H5": {
+      "pass": false,
+      "advisory_share": 0.003,
+      "fallback_share": 0.997,
+      "detail": "per-tick mode census via side-effect-inert probe"
+    },
+    "determinism": {
+      "pass": true,
+      "detail": "M1 seeds 1..3 run twice, chain head + H1 byte-equal"
+    }
+  },
+  "overall": "FAIL",
+  "wall_ms": 152358
+}
