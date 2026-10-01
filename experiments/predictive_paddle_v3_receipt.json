@@ -1,0 +1,114 @@
+{
+  "schema": "predictive_paddle_v3/v1",
+  "prereg": "experiments/predictive_paddle_v3.PREREG.md (SEALED 38aa174; deltas vs v2 = linear err metric + sense-local clock)",
+  "failure_history": "experiments/predictive_paddle.FINDINGS.md (v1 FAIL: dilution) + experiments/predictive_paddle_v2.FINDINGS.md (v2 FAIL: wrap-collapse + tick-reset A_eff explosion)",
+  "model": {
+    "name": "flycx-v3-linear-metric-sense-clock",
+    "ported_from": "SuperInstance/chiaroscuro PR #6 (tools/fly_cx.py), v1 lineage",
+    "constants": {
+      "bins": 32,
+      "A0": 0.5,
+      "commit_gain": 0.15,
+      "reject_shrink": 0.7,
+      "reject_threshold_units": 7.5,
+      "reject_threshold_note": "identical to v1/v2 45deg rule (45/360*60=7.5), equivalence recorded",
+      "event_decay": "0.85 (unused in v3 write rule — replaced by pull w)",
+      "cert_decay": 0.98,
+      "pull": "w = max(GAIN, min(0.85, errU/30)) * (1-A_eff), errU linear",
+      "clock": "st.clock per sense.update call; A_eff = A*0.98^(st.clock-st.lastClock)"
+    }
+  },
+  "seed": 20261001,
+  "matches_per_arm": 50,
+  "m1": {
+    "h1": {
+      "rate": 0.2083,
+      "pass": false,
+      "n": 24
+    },
+    "h1_all_serves": 0.1136,
+    "h2": {
+      "rate": 0.1552,
+      "pass": false,
+      "n": 58
+    },
+    "between": {
+      "mean_err": 15.23,
+      "max_err": 58.411,
+      "n": 18375
+    },
+    "psi": {
+      "commit": 1320,
+      "reject": 357,
+      "abstain": 1858
+    },
+    "serves": 44,
+    "leftBoundServes": 24,
+    "leftReturns": 58,
+    "eventsPerMatch": {
+      "min": 28,
+      "med": 70,
+      "max": 148
+    }
+  },
+  "m1_chain": {
+    "rows": 3585,
+    "head": "c445d1950942cc8a",
+    "verified": true
+  },
+  "m2": {
+    "control_wr": 0.86,
+    "advisory_wr": 0.72,
+    "modes": {
+      "attractor": 44889,
+      "reactive-fallback": 181636,
+      "reactive-law": 0
+    },
+    "advisory_share": 0.1982,
+    "fallback_share": 0.8018
+  },
+  "verdicts": {
+    "H1": {
+      "rate": 0.2083,
+      "pass": false,
+      "n": 24,
+      "all_serves_rate": 0.1136,
+      "v1_rate": 0.2083,
+      "detail": "left-bound serves, err<=1.5 within <=12 ticks; v1 comparison recorded (dilution diagnosis prediction: pass)"
+    },
+    "H2": {
+      "rate": 0.1552,
+      "pass": false,
+      "n": 58,
+      "v1_rate": 0.1404,
+      "detail": "re-capture within <=2 events after own-return abstain"
+    },
+    "H3": {
+      "pass": false,
+      "control_wr": 0.86,
+      "advisory_wr": 0.72,
+      "v1": {
+        "control": 0.86,
+        "advisory": 0.94
+      },
+      "detail": "advisory >= reactive control (non-inferiority)"
+    },
+    "H4": {
+      "pass": true,
+      "advisory_wr": 0.72,
+      "detail": "advisory >= 55%"
+    },
+    "H5": {
+      "pass": true,
+      "advisory_share": 0.1982,
+      "fallback_share": 0.8018,
+      "detail": "per-tick mode census via side-effect-inert probe"
+    },
+    "determinism": {
+      "pass": true,
+      "detail": "M1 seeds 1..3 run twice, chain head + H1 byte-equal"
+    }
+  },
+  "overall": "FAIL",
+  "wall_ms": 173460
+}
