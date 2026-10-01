@@ -5,6 +5,7 @@ import { buildSheet } from './sheet.mjs';
 export const id = 'holdem';
 export const slots = ['judge', 'quantum', 'predictor'];
 export const receipts = {
+  witness_shape: "Receipt rows follow the quilt-tools S3 witness shape (WitnessLog, experiments/s3-quantum-tided-budget.mjs): fnv1a-chained rows re-derived from GENESIS, custody booked before outcome \u2014 PENDING \u2192 ENTANGLED \u2192 COLLAPSED on appeal.",
   sources: [
     { cell: 'learn.receipts.p1', chained: true, fields: ['seq', 'hand', 'net_bb', 'stack', 'theta_hash', 'nudge_count'], label: 'P1 learner' },
     { cell: 'learn.receipts.p2', chained: true, fields: ['seq', 'hand', 'net_bb', 'stack', 'theta_hash', 'nudge_count'], label: 'P2 learner' },

@@ -1,7 +1,7 @@
 {
   "id": "pong",
   "version": "1.0.0",
-  "title": "Pong — realtime laws on the discrete sheet",
+  "title": "Pong \u2014 realtime laws on the discrete sheet",
   "kind": "physics-game",
   "entry": "./module.mjs",
   "cells": [
@@ -42,11 +42,12 @@
   ],
   "listeners": [],
   "receipts": {
+    "witness_shape": "Receipt rows follow the quilt-tools S3 witness shape (WitnessLog, experiments/s3-quantum-tided-budget.mjs): fnv1a-chained rows re-derived from GENESIS, custody booked before outcome \u2014 PENDING \u2192 ENTANGLED \u2192 COLLAPSED on appeal.",
     "sources": [
       {
         "cell": "log.events",
         "chained": false,
-        "hint": "log.events — the sheet audit trail: new_game, paddle hits, points, serves, closure"
+        "hint": "log.events \u2014 the sheet audit trail: new_game, paddle hits, points, serves, closure"
       }
     ],
     "min": 1
@@ -56,5 +57,15 @@
     "shared": [
       "kit"
     ]
-  }
+  },
+  "referrals": [
+    {
+      "repo": "SuperInstance/quilt-tools",
+      "path": "experiments/s3-quantum-tided-budget.mjs",
+      "url": "https://github.com/SuperInstance/quilt-tools/blob/main/experiments/s3-quantum-tided-budget.mjs",
+      "edge": "qt-s3-witness -> qa-receipts-surface",
+      "note": "S3 quantum-tided budget appeal cell: WitnessLog fnv1a-chained rows, state transitions PENDING/ENTANGLED/COLLAPSED all witnessed, COLLAPSED rows carry job_id + backend + result digest, custody booked before the outcome exists.",
+      "currency": "VERIFIED=1.0 pending merge of THIS PR in the target repo (weight law: merged PR in the to-node's repo naming the source); booked PENDING until then \u2014 never self-upgraded."
+    }
+  ]
 }
