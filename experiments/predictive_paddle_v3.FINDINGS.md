@@ -54,3 +54,18 @@ different sensor model, not new constants (KC-geo/CAST precedent).
   (full sampling, vs v2's explosion-collapsed 2,613) with healthy psi census.
 - H4 (72% ≥ 55%) passes on paper and is recorded without celebration: the arm was
   net-negative vs control, which is the number that matters.
+
+## Referral ledger (lane closed)
+
+- **→ SuperInstance/quilt-dba** (`dba/sheet.mjs` E-D1 seed, verified by direct
+  read 2026-10-02): their `world.surprise`/`world.predict` JEPA pair recomputes
+  surprise as a *pure per-eval function* of live state (`|dpos|·250 +
+  reward_miss·500`) — no persistent accumulator gates it, `state.stage` gain is
+  additive and clamped `[0,10]/eval`, and `memory.decayTick` ages by the
+  driver-owned eval counter (checkpoint-consistent, rewind-invertible per E-D4,
+  never reset mid-run). This is the pinning-avoiding contract this lane lacked:
+  nothing multiplicative throttles updates, and no resettable counter ages
+  persistent cells. v3's freeze (A→1 pinned, w≈0.003–0.05, ring frozen ~15u) is
+  the measured counter-example their design avoids by construction. Supporting
+  evidence filed both directions; CANDIDATE per weight law until a merged PR
+  cites it.
